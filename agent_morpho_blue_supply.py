@@ -486,4 +486,5 @@ if __name__ == "__main__":
         progress("Replaying", index, len(fixtures))
         result = test_agent.run(RunConfig(chain=CHAINS[chain_key]["chain"], hashes=[tx_hash]))
         progress_done()
-        print_findings(result, f"Morpho Blue ({chain_key}): {label}", quiet=quiet)
+        print_findings(result, f"Morpho Blue ({chain_key}): {label}", quiet=quiet,
+                       chain_key=chain_key)

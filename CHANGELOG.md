@@ -15,6 +15,41 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Morpho Blue agent (Aave v3 on Base
   is done, see 0.0.13); no Morpho Blue Base fixture exists yet.
 
+## [0.0.19] - 2026-09-08
+
+Risk scores are now readable, and the agents screen the pool a deposit
+landed in -- the same block `discover_positions.py` already printed.
+
+### Added
+
+- Pool toxicity in the full (non-`--quiet`) output of all three agents, for
+  the pool the deposit just landed in. The identifier the API wants is
+  already in the finding: the aToken for Aave v3, the vault address for
+  Morpho Vaults, the market id for Morpho Blue -- all three confirmed
+  against live transactions, returning `Aave V3`, `Morpho Vaults` and
+  `Morpho Blue` respectively.
+- Like the risk scores, this is a **local demo feature**: a plain HTTP call
+  made by the CLI, not an agent variable, so it never reaches a deployed
+  agent, the exported rule JSON, or the alert text. Off unless credentials
+  are in `config.env`, and skipped with `--no-toxicity`.
+
+### Fixed
+
+- Risk scores printed in scientific notation -- `2.688173879050737e-07`
+  read as noise, or worse, as a big number. They now print as plain
+  decimals with a note when they sit essentially at zero. Hypernative does
+  not publish the scale, so the wording describes the number only and makes
+  no claim about what a risky score would look like.
+- The `-1` "no score" case moved into the same formatter rather than being
+  special-cased at the call site.
+
+### Changed
+
+- The pool-toxicity code (constants, policy lookup, the screening call and
+  its printer) moved from `discover_positions.py` to `shared/common.py` so
+  the agents share one implementation. `discover_positions.py` output is
+  unchanged -- verified against a live sweep.
+
 ## [0.0.18] - 2026-09-08
 
 The progress bar now covers all four tools, not just the position sweep.

@@ -438,4 +438,5 @@ if __name__ == "__main__":
         progress("Replaying", index, len(fixtures))
         result = test_agent.run(RunConfig(chain=CHAIN, hashes=[tx_hash]))
         progress_done()
-        print_findings(result, f"Morpho Vault: {label}", quiet=quiet)
+        print_findings(result, f"Morpho Vault: {label}", quiet=quiet,
+                       chain_key="ethereum")

@@ -32,9 +32,12 @@ with `NameError`. Every sandbox function in this directory therefore re-declares
 the constants it needs inside its own body. The duplication is deliberate.
 """
 
+import json
 import os
 import re
 import sys
+
+import requests
 
 from invariantive.common.consts import Chain
 
@@ -638,6 +641,293 @@ VARIABLE_SECTION_ORDER = ["Who", "What was deposited", "Where it landed", "Trans
 INITIATOR_KEYS = ("caller_user", "caller", "sender")
 
 
+# ==========================================================================
+# POOL TOXICITY -- optional, and off unless credentials are configured.
+#
+# Screens who ELSE is in a pool you are exposed to: how much of that
+# liquidity traces back to sanctioned, mixer-linked or hack-proceeds funds.
+# Used by discover_positions.py (per position held) and by the agents' full
+# output (for the pool a deposit just landed in).
+#
+# The `poolId` this API wants is protocol-specific, and for the protocols
+# reported here it is exactly the identifier already in hand:
+#   Aave V3             -> the aToken address
+#   Morpho Vaults V1/V2 -> the vault address
+#   Morpho Blue         -> the market id (bytes32)
+# The protocol is detected server-side, so nothing needs to be declared here.
+# Coverage is not uniform across protocols; a pool the API does not cover
+# comes back as an explicit "could not check", never as a clean result.
+# ==========================================================================
+POOL_TOXICITY_URL = "https://api.hypernative.xyz/screener/pool-toxicity/reputation/lp"
+POOL_TOXICITY_POLICIES_URL = "https://api.hypernative.xyz/screener/pool-toxicity/policies"
+
+# The API takes at most 5 policies per request, but screening against every
+# policy an account happens to have just repeats a near-identical block per
+# position. Default to one, matching the single-policy view in the web UI's
+# "Flags Inspection" panel.
+MAX_POOL_TOXICITY_POLICIES = 5
+
+# Preferred policy when the account has several. Falls back to whichever
+# policy comes back first, so this still works on an account that named
+# theirs something else.
+PREFERRED_POLICY_NAME = "Default PT Policy"
+
+
+def pool_toxicity_credentials():
+    """(client_id, client_secret) from config.env, or None if not configured.
+
+    This is the opt-in gate: the balance sweep works with no Hypernative
+    account at all, so a missing credential is a normal state, not an error.
+    """
+    client_id = os.environ.get("HYPERNATIVE_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("HYPERNATIVE_CLIENT_SECRET", "").strip()
+    if not client_id or not client_secret:
+        return None
+    return client_id, client_secret
+
+
+def pool_toxicity_headers(credentials):
+    client_id, client_secret = credentials
+    return {
+        "Content-Type": "application/json",
+        "x-client-id": client_id,
+        "x-client-secret": client_secret,
+    }
+
+
+def pool_toxicity_policy_ids(credentials):
+    """Which policies to screen against.
+
+    POOL_TOXICITY_POLICY_IDS in config.env wins if set (comma-separated, up
+    to the API's limit of 5). Otherwise pick a single policy from the
+    account: PREFERRED_POLICY_NAME if present, else the first one. A policy
+    is REQUIRED by the API -- there is no default -- so an account with none
+    configured yet simply gets no screening rather than a confusing error.
+    """
+    configured = os.environ.get("POOL_TOXICITY_POLICY_IDS", "").strip()
+    if configured:
+        ids = [policy_id.strip() for policy_id in configured.split(",") if policy_id.strip()]
+        return ids[:MAX_POOL_TOXICITY_POLICIES]
+    try:
+        response = requests.get(
+            POOL_TOXICITY_POLICIES_URL, headers=pool_toxicity_headers(credentials), timeout=30
+        )
+        policies = [policy for policy in (response.json().get("data") or []) if policy.get("id")]
+    except Exception:
+        return []
+    if not policies:
+        return []
+    preferred = [policy for policy in policies if policy.get("name") == PREFERRED_POLICY_NAME]
+    chosen = preferred[0] if preferred else policies[0]
+    return [chosen["id"]]
+
+
+def format_toxicity_percentage(value):
+    """Render a toxicity percentage the way the Hypernative UI does.
+
+    Deliberately NOT plain rounding: 0.0058 rounds up to "0.01%", but the UI
+    shows "< 0.01%" for it. Anything under 0.01 is reported as below the
+    display floor instead, which avoids implying more precision than the
+    figure carries.
+    """
+    if not isinstance(value, (int, float)):
+        return "?"
+    if value == 0:
+        return "0%"
+    if value < 0.01:
+        return "< 0.01%"
+    return f"{value:.2f}%"
+
+
+def check_pool_toxicity(pool_id, chain_key, toxicity):
+    """Screen one pool. Always returns a dict describing what happened.
+
+    A failed check is returned as its own outcome ("error"), never as an
+    absence of findings -- treating "couldn't check" as "nothing found" is
+    exactly the bug this script already had once (see CHANGELOG 0.0.8), and
+    it would be worse here, where the subject is compliance exposure.
+    """
+    body = {
+        "poolId": pool_id,
+        "chain": chain_key,
+        "poolToxicityPolicyIds": toxicity["policy_ids"],
+    }
+    try:
+        response = requests.post(
+            POOL_TOXICITY_URL,
+            headers=pool_toxicity_headers(toxicity["credentials"]),
+            data=json.dumps(body),
+            timeout=90,
+        )
+        payload = response.json()
+    except Exception as exception:
+        return {"error": f"{type(exception).__name__}: {exception}"}
+
+    if not payload.get("success"):
+        return {"error": payload.get("error") or f"HTTP {response.status_code}"}
+
+    data = payload.get("data") or {}
+    policies = []
+    for policy in data.get("policiesResults") or []:
+        # Trust the server's own per-flag severity rather than re-deriving it
+        # from thresholds here: the verdict is policy logic, not ours to
+        # reimplement. Every flag carries its OWN threshold, so percentages
+        # are not comparable between flags -- live data has a 0.055% flag
+        # sitting clean while a 0.006% one is Medium.
+        flags = policy.get("flags") or []
+        triggered = [
+            flag for flag in flags
+            if flag.get("severity") and flag["severity"] != "N/A"
+        ]
+        policies.append({
+            "name": policy.get("policyName") or policy.get("policyId"),
+            "percentage": policy.get("policyToxicityPercentage"),
+            "recommendation": policy.get("recommendation"),
+            "triggered": triggered,
+            "flag_count": len(flags),
+        })
+    return {
+        "protocol": data.get("protocol"),
+        "recommendation": data.get("recommendation"),
+        "severity": data.get("severity"),
+        "policies": policies,
+    }
+
+
+def print_pool_toxicity(pool_id, chain_key, toxicity, indent):
+    """Print the toxicity verdict for one pool, beneath its HOLDS line.
+
+    Laid out to mirror the "Flags Inspection" panel in the Hypernative web
+    app: the policy's recommendation and aggregated toxicity, then the flags
+    that actually triggered.
+    """
+    progress_note("screening pool toxicity...")
+    result = check_pool_toxicity(pool_id, chain_key, toxicity)
+    progress_done()
+
+    if result.get("error"):
+        print(f"{indent}Pool toxicity: could not check -- {result['error']}")
+        return
+
+    protocol = result.get("protocol") or "?"
+    for policy in result["policies"]:
+        print(f"{indent}Pool toxicity -- {policy['name']}   [{protocol}]")
+        print(f"{indent}  Policy Recommendation:      {policy['recommendation'] or '?'}")
+        print(f"{indent}  Policy Aggregated Toxicity: "
+              f"{format_toxicity_percentage(policy['percentage'])}")
+
+        triggered = policy["triggered"]
+        total = policy["flag_count"]
+        if not triggered:
+            print(f"{indent}  Flags triggered: none ({total} flags clean)")
+            continue
+
+        # Only the flags that drove the verdict. The aggregated figure alone
+        # is misleading -- it can sit far below the policy threshold while an
+        # individual flag (sanctions, say) blows past its own much lower one,
+        # which is exactly how a 0.13% pool ends up as Deny.
+        print(f"{indent}  Flags triggered ({len(triggered)} of {total}):")
+        labels = [f"{flag.get('title')} ({flag.get('flagId')})" for flag in triggered]
+        width = max(len(label) for label in labels)
+        for flag, label in zip(triggered, labels):
+            share = format_toxicity_percentage(flag.get("toxicityPercentage"))
+            print(f"{indent}    {label:<{width}}  {share:>8}  {flag.get('severity')}")
+
+
+def format_risk_score(value):
+    """Render a ContractScoreVariable score so a human can read it.
+
+    Two problems with the raw value. `-1` is not a score at all -- it is the
+    SDK's "no score for this contract", which reads as a literal (and
+    confusingly negative) rating. And a real score arrives as a float small
+    enough that Python prints it in scientific notation
+    (4.3318038933648495e-08), which is unreadable at a glance and easy to
+    misread as a large number.
+
+    Hypernative does not publish the scale, so this only reformats the
+    number and says how close to zero it sits. It deliberately makes no
+    claim about what a "risky" score would look like.
+    """
+    if value == -1:
+        return "not available (Hypernative has no score for this contract)"
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return value
+    if value == 0:
+        return "0 (no risk signal)"
+    if value < 0:
+        # Unexpected: -1 is handled above and scores are otherwise positive.
+        # Show it raw rather than dress up something we don't understand.
+        return value
+    if value < 0.0001:
+        plain = f"{value:.12f}".rstrip("0")
+        return f"{plain} (effectively zero)"
+    return f"{value:.4f}"
+
+
+# Which extracted variable carries the poolId the toxicity API wants, per
+# agent. Checked in order, so an agent whose finding has none of them simply
+# gets no toxicity block -- see pool_toxicity_target().
+POOL_TOXICITY_KEYS = (
+    ("atoken", "aToken"),        # Aave v3
+    ("vault_address", "vault"),  # Morpho Vaults V1/V2
+    ("market_id", "market"),     # Morpho Blue
+)
+
+
+def pool_toxicity_target(variables):
+    """(pool_id, what_it_is) for one finding, or None if nothing screenable."""
+    for key, description in POOL_TOXICITY_KEYS:
+        pool_id = variables.get(key)
+        if pool_id:
+            return pool_id, description
+    return None
+
+
+# Resolved once per process: the policy lookup is an HTTP call, and every
+# finding in a run screens against the same policy. `"unresolved"` rather
+# than None as the empty marker, since None is itself a valid answer
+# ("resolved, and screening is off").
+_TOXICITY_CONTEXT = "unresolved"
+
+
+def resolve_toxicity(announce=True):
+    """Build the Pool Toxicity context, or None to skip screening entirely.
+
+    Three ways to end up skipping, all normal and none an error:
+    `--no-toxicity`, no credentials in config.env, or an account with no
+    Pool Toxicity policy defined (the API requires at least one and has no
+    default). Each is announced, so a run with no toxicity block never
+    leaves you wondering whether the pool came back clean.
+    """
+    global _TOXICITY_CONTEXT
+    if _TOXICITY_CONTEXT != "unresolved":
+        return _TOXICITY_CONTEXT
+
+    _TOXICITY_CONTEXT = None
+    if "--no-toxicity" in sys.argv:
+        return None
+
+    credentials = pool_toxicity_credentials()
+    if credentials is None:
+        if announce:
+            print("Pool toxicity: skipped (no HYPERNATIVE_CLIENT_ID / "
+                  "HYPERNATIVE_CLIENT_SECRET in config.env).")
+        return None
+
+    policy_ids = pool_toxicity_policy_ids(credentials)
+    if not policy_ids:
+        if announce:
+            print("Pool toxicity: skipped (no policy found -- create one under "
+                  "Screener > Policies, or set POOL_TOXICITY_POLICY_IDS).")
+        return None
+
+    if announce:
+        plural = "policy" if len(policy_ids) == 1 else "policies"
+        print(f"Pool toxicity: enabled ({len(policy_ids)} {plural}).")
+    _TOXICITY_CONTEXT = {"credentials": credentials, "policy_ids": policy_ids}
+    return _TOXICITY_CONTEXT
+
+
 def print_variables(variables):
     """Print one finding's extracted_variables, grouped and labelled.
 
@@ -655,11 +945,8 @@ def print_variables(variables):
     sections = {}
     for key, value in remaining.items():
         section, label = VARIABLE_SECTIONS.get(key, ("Other", key))
-        # ContractScoreVariable returns -1 when Hypernative has no score for
-        # a contract -- shown as a bare "-1" that reads as a literal (and
-        # confusingly negative) score otherwise.
-        if key.endswith("_risk_score") and value == -1:
-            value = "not available (Hypernative has no score for this contract)"
+        if key.endswith("_risk_score"):
+            value = format_risk_score(value)
         sections.setdefault(section, []).append((label, value))
 
     mismatch = formatted.get("initiator_mismatch")
@@ -689,7 +976,7 @@ def print_variables(variables):
                 print(f"    {label}: {value}")
 
 
-def print_findings(result, title="", quiet=False):
+def print_findings(result, title="", quiet=False, chain_key=None):
     """Print an agent.run() result.
 
     quiet=False (default): the full local-testing view -- a banner with the
@@ -724,3 +1011,34 @@ def print_findings(result, title="", quiet=False):
         print("ALERT: " + str(finding.get("description")))
         variables = finding.get("extracted_variables", {}) or {}
         print_variables(variables)
+        print_finding_toxicity(variables, chain_key)
+
+
+def print_finding_toxicity(variables, chain_key):
+    """Screen the pool this deposit landed in, under the variable dump.
+
+    Local demo output only, like the risk scores: this is a plain HTTP call
+    made here on the CLI, not an agent variable, so it never reaches a
+    deployed agent, the exported rule JSON, or the alert text. Skipped
+    entirely without a chain (nothing to screen against) or without
+    credentials -- and the skip is announced, so a missing block is never
+    read as a clean pool.
+    """
+    if not chain_key:
+        return
+    target = pool_toxicity_target(variables)
+    if not target:
+        return
+    # Blank line first: resolve_toxicity() prints its one-off status line on
+    # the first call, and that line reads as part of the section above it
+    # otherwise.
+    print()
+    toxicity = resolve_toxicity()
+    if not toxicity:
+        return
+    pool_id, _description = target
+    # No heading of our own -- print_pool_toxicity's first line already is
+    # one, and at this indent it lines up with the section headings above.
+    # Which contract was screened is the pool/vault/market id printed a few
+    # lines up under "Where it landed".
+    print_pool_toxicity(pool_id, chain_key, toxicity, "  ")

@@ -138,9 +138,9 @@ Medium. Only flags that actually triggered are listed; the rest are counted.
   authenticated, since they run the real agent logic.
 
 Optional: `cp config.env.example config.env` and add your Hypernative API
-credentials (git-ignored). That switches on the pool toxicity screening in
-`discover_positions.py`; without it, that step is skipped and everything else
-works exactly the same. You also need at least one Pool Toxicity policy in
+credentials (git-ignored). That switches on the pool toxicity screening —
+in `discover_positions.py` and in the agents' full output; without it, that
+step is skipped, says so, and everything else works exactly the same. You also need at least one Pool Toxicity policy in
 your account (Screener > Policies) — the API requires one and has no default.
 
 ---
@@ -162,10 +162,14 @@ the Morpho Blue script alone would miss it entirely.
 
 Without `--quiet`, each deposit is broken into plain-English sections —
 **Who**, **What was deposited**, **Where it landed**, **Transaction** — with
-every underlying value shown. Each contract involved also gets a Hypernative
-risk score (lower is safer; `not available` means it hasn't been scored).
-These scores are a **local demo feature only** — deployed agents don't
-compute them and don't pay for the extra calls.
+every underlying value shown, followed by the pool toxicity of whatever the
+deposit landed in (same block as in `discover_positions.py`, described
+above). Each contract involved also gets a Hypernative risk score (lower is
+safer; `not available` means it hasn't been scored).
+
+Both the scores and the toxicity block are a **local demo feature only** —
+deployed agents don't compute them, don't pay for the extra calls, and
+never carry them in the alert text.
 
 With `--quiet`, you get only the audit lines: wrapped, colourised, one blank
 line apart. This is the exact text a real alert carries, so it's safe to

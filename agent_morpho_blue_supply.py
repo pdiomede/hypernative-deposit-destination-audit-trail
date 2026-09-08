@@ -1,8 +1,21 @@
 """
 Morpho Blue deposit destination (audit trail)
 
-Fires on every Morpho Blue `Supply` on Ethereum where the supply shares land on
-a monitored Safe, and emits one plain-English audit line.
+Fires on every Morpho Blue `Supply` on a supported chain (Ethereum or Base,
+see CHAINS in shared/common.py) where the supply shares land on a monitored
+Safe, and emits one plain-English audit line.
+
+BASE SUPPORT AND THE SAME-ADDRESS QUIRK
+    Morpho deploys Morpho Blue deterministically (CREATE2), so its address is
+    IDENTICAL on Ethereum and Base -- confirmed independently on Etherscan and
+    Basescan (both "Exact Match"). That means, unlike the Aave v3 agent, the
+    contract address in this alert's own text can NOT tell a reader which
+    chain a given deposit happened on. This is handled at the agent/rule
+    level instead: one agent per chain, named "... (ethereum)"/"... (base)"
+    and exported to separate rule_morpho_blue_supply_<chain>.json files, so
+    the Hypernative dashboard disambiguates even though the alert text can't.
+    Not yet confirmed by replaying a real Base transaction -- no Base fixture
+    exists below, only Ethereum ones.
 
 WHAT THE ALERT CONTAINS
     protocol (Morpho Blue) · the destination MARKET ID (the audit primary key)
@@ -71,9 +84,9 @@ from invariantive.model.trigger import Condition
 # NOTE: NOTIFICATION_CHANNEL_IDS and SEVERITY read as unused to a linter.
 # They are referenced by the commented-out agent.deploy(...) block at the
 # bottom of this file. Do not remove them.
-from shared.common import (CHAIN, SAFE_LIST_UUID, MORPHO_ARG_ASSETS,
+from shared.common import (CHAINS, SAFE_LIST_UUID, MORPHO_ARG_ASSETS,
                            MORPHO_ARG_CALLER, MORPHO_ARG_MARKET_ID, MORPHO_ARG_ONBEHALF,
-                           MORPHO_ARG_SHARES, MORPHO_BLUE, MORPHO_TX_CALLER_NE_ONBEHALF,
+                           MORPHO_ARG_SHARES, MORPHO_TX_CALLER_NE_ONBEHALF,
                            MORPHO_TX_USDC_LARGE, MORPHO_TX_WETH_18DP,
                            NOTIFICATION_CHANNEL_IDS, SEVERITY, is_quiet_mode, print_findings)
 
@@ -88,8 +101,14 @@ def build_audit_line(extracted_variables):
     ternary, no leading-underscore names, f-strings only.
     """
     try:
-        morpho_blue = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
         safes_list_uuid = "SAFE_LIST_UUID"
+
+        # Read from the trigger's own "emitting_contract" rather than
+        # hardcoded: this same function serves every chain's agent (see
+        # CHAINS in shared/common.py), and while Morpho Blue's address
+        # happens to be identical on Ethereum and Base today, hardcoding it
+        # would silently break if that ever stops being true.
+        morpho_blue = extracted_variables.get("market_contract")
         # Morpho SharesMathLib constants. Declared here, not imported.
         virtual_shares = 1000000
         virtual_assets = 1
@@ -203,20 +222,28 @@ def extract_audit_line(extracted_variables):
     return formatted.get("audit_line")
 
 
-def build_agent(apply_safe_filter=True):
-    """Assemble the agent.
+def build_agent(chain_key="ethereum", apply_safe_filter=True):
+    """Assemble the agent for one chain.
+
+    chain_key selects the chain's Morpho Blue address from CHAINS in
+    shared/common.py ("ethereum" or "base") -- it happens to be the same
+    address on both today, but is looked up per chain rather than assumed.
 
     apply_safe_filter=False builds the test shape used by the fixture replay in
     __main__. NEVER deploy the unfiltered shape.
     """
+    chain_config = CHAINS[chain_key]
+    chain = chain_config["chain"]
+    morpho_blue = chain_config["morpho_blue"]
+
     agent = Agent(
         trigger=EventTrigger(
-            chain=CHAIN,
-            contract_address=MORPHO_BLUE,
+            chain=chain,
+            contract_address=morpho_blue,
             event_sig="Supply",
             output_index="emitting_contract",
             operator="compare_exact",
-            operands=[MORPHO_BLUE],
+            operands=[morpho_blue],
         )
     )
 
@@ -231,6 +258,10 @@ def build_agent(apply_safe_filter=True):
             )
         )
 
+    # The Morpho Blue address that actually emitted this event -- read
+    # dynamically rather than hardcoded in build_audit_line(), since the SAME
+    # formatter function is used for every chain's agent.
+    agent.add_variable(ContextVariable(output_index="emitting_contract", var_name="market_contract"))
     # Event args and transaction identity.
     agent.add_variable(ContextVariable(output_index=MORPHO_ARG_MARKET_ID, var_name="market_id"))
     agent.add_variable(ContextVariable(output_index=MORPHO_ARG_CALLER, var_name="caller"))
@@ -249,21 +280,21 @@ def build_agent(apply_safe_filter=True):
     # ----------------------------------------------------------------------
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address=MORPHO_BLUE, func_sig="idToMarketParams",
+            chain=chain, contract_address=morpho_blue, func_sig="idToMarketParams",
             input=["extracted_variables.market_id"],
             output_index="output_arg_0", var_name="loan_token",       # the asset supplied
         )
     )
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address=MORPHO_BLUE, func_sig="idToMarketParams",
+            chain=chain, contract_address=morpho_blue, func_sig="idToMarketParams",
             input=["extracted_variables.market_id"],
             output_index="output_arg_1", var_name="collateral_token",
         )
     )
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address=MORPHO_BLUE, func_sig="idToMarketParams",
+            chain=chain, contract_address=morpho_blue, func_sig="idToMarketParams",
             input=["extracted_variables.market_id"],
             output_index="output_arg_4", var_name="lltv",
         )
@@ -272,7 +303,7 @@ def build_agent(apply_safe_filter=True):
     # Token metadata. Dynamic addresses, so full signature + ABI types required.
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address="extracted_variables.loan_token",
+            chain=chain, contract_address="extracted_variables.loan_token",
             func_sig="decimals()", input=[], input_data_type=[],
             output_data_type=["uint8"], output_index="output_arg_0",
             var_name="loan_decimals",
@@ -280,7 +311,7 @@ def build_agent(apply_safe_filter=True):
     )
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address="extracted_variables.loan_token",
+            chain=chain, contract_address="extracted_variables.loan_token",
             func_sig="symbol()", input=[], input_data_type=[],
             output_data_type=["string"], output_index="output_arg_0",
             var_name="loan_symbol",
@@ -288,7 +319,7 @@ def build_agent(apply_safe_filter=True):
     )
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address="extracted_variables.collateral_token",
+            chain=chain, contract_address="extracted_variables.collateral_token",
             func_sig="symbol()", input=[], input_data_type=[],
             output_data_type=["string"], output_index="output_arg_0",
             var_name="collateral_symbol",
@@ -302,7 +333,7 @@ def build_agent(apply_safe_filter=True):
     # ----------------------------------------------------------------------
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address=MORPHO_BLUE, func_sig="position",
+            chain=chain, contract_address=morpho_blue, func_sig="position",
             input=["extracted_variables.market_id", "extracted_variables.safe_address"],
             output_index="output_arg_0", var_name="supply_shares_after",
         )
@@ -310,14 +341,14 @@ def build_agent(apply_safe_filter=True):
     # Market totals, needed to convert shares back into the underlying asset.
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address=MORPHO_BLUE, func_sig="market",
+            chain=chain, contract_address=morpho_blue, func_sig="market",
             input=["extracted_variables.market_id"],
             output_index="output_arg_0", var_name="total_supply_assets",
         )
     )
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN, contract_address=MORPHO_BLUE, func_sig="market",
+            chain=chain, contract_address=morpho_blue, func_sig="market",
             input=["extracted_variables.market_id"],
             output_index="output_arg_1", var_name="total_supply_shares",
         )
@@ -345,34 +376,43 @@ def build_agent(apply_safe_filter=True):
     return agent
 
 
-agent = build_agent(apply_safe_filter=True)
-agent.save_config("rules/rule_morpho_blue_supply.json")
+# One agent per chain in CHAINS -- see the module docstring's "BASE SUPPORT
+# AND THE SAME-ADDRESS QUIRK" for why each chain gets its own agent/rule file
+# even though the contract address is identical across them.
+agents = {}
+for chain_key in CHAINS:
+    agents[chain_key] = build_agent(chain_key=chain_key, apply_safe_filter=True)
+    agents[chain_key].save_config(f"rules/rule_morpho_blue_supply_{chain_key}.json")
 
 
 # ==========================================================================
 # DEPLOY -- intentionally commented out. See README.md for the pre-deploy
-# checklist (channel id, list UUID, chains in scope, custom-agent quota).
+# checklist (channel id, list UUID, chains in scope, custom-agent quota --
+# this now deploys one agent PER CHAIN in CHAINS, so it counts double).
 # Channel id: Actions > Notification Channels > open channel > id in the URL,
 # or GET https://api.hypernative.xyz/notification-channels
 # (headers: x-client-id, x-client-secret).
 # ==========================================================================
-# agent_id = agent.deploy(
-#     agent_name=AGENT_NAME,
-#     severity=SEVERITY,                                  # "Info"
-#     channels_configurations=NOTIFICATION_CHANNEL_IDS,   # e.g. [{"id": 1337}]
-# )
-# print(f"deployed agent id: {agent_id}")
+# for chain_key, chain_agent in agents.items():
+#     agent_id = chain_agent.deploy(
+#         agent_name=f"{AGENT_NAME} ({chain_key})",
+#         severity=SEVERITY,                                  # "Info"
+#         channels_configurations=NOTIFICATION_CHANNEL_IDS,   # e.g. [{"id": 1337}]
+#     )
+#     print(f"deployed {chain_key} agent id: {agent_id}")
 
 
 if __name__ == "__main__":
-    # Real historical Ethereum mainnet Morpho Blue supplies. The fixtures are
-    # not monitored Safes, so the unfiltered shape is used to exercise the
-    # full path; the production `agent` above keeps the Safe filter.
+    # Real historical Ethereum mainnet Morpho Blue supplies. No Base fixture
+    # exists yet, so only Ethereum is exercised here.
+    #
+    # The fixtures are not monitored Safes, so the unfiltered shape is used to
+    # exercise the full path; the production `agents` above keep the Safe filter.
     #
     # --quiet / -q : print only the ALERT lines, no debug variable dump.
     # Demo-friendly for screen-sharing with a customer.
     quiet = is_quiet_mode()
-    test_agent = build_agent(apply_safe_filter=False)
+    test_agent = build_agent(chain_key="ethereum", apply_safe_filter=False)
 
     fixtures = [
         (MORPHO_TX_USDC_LARGE, "355,036.521182 USDC, caller == onBehalf"),
@@ -380,5 +420,5 @@ if __name__ == "__main__":
         (MORPHO_TX_CALLER_NE_ONBEHALF, "1,007.278549 USDC via router, caller != onBehalf"),
     ]
     for tx_hash, label in fixtures:
-        result = test_agent.run(RunConfig(chain=CHAIN, hashes=[tx_hash]))
+        result = test_agent.run(RunConfig(chain=CHAINS["ethereum"]["chain"], hashes=[tx_hash]))
         print_findings(result, f"Morpho Blue: {label}", quiet=quiet)

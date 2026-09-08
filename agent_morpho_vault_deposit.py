@@ -335,7 +335,7 @@ def build_agent(vault_address, apply_safe_filter=True):
 
 # --------------------------------------------------------------------------
 # One agent per in-scope vault. MORPHO_VAULTS_IN_SCOPE is intentionally empty
-# until you confirm which vaults you use -- run tools/discover_positions.py to
+# until you confirm which vaults you use -- run discover_positions.py to
 # find out. Building agents for vaults you do not use would burn your
 # pools/contracts and custom-agent quota for nothing.
 # --------------------------------------------------------------------------
@@ -350,7 +350,7 @@ for vault in MORPHO_VAULTS_IN_SCOPE:
 if not MORPHO_VAULTS_IN_SCOPE and not is_quiet_mode():
     print(
         "NOTE: MORPHO_VAULTS_IN_SCOPE in shared/common.py is empty, so no vault agents "
-        "were built.\n      Run tools/discover_positions.py, confirm your vaults, "
+        "were built.\n      Run discover_positions.py, confirm your vaults, "
         "then populate it."
     )
 

@@ -112,9 +112,10 @@ AAVE_V3_POOL = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
 #     uint16 indexed referralCode   -> emitted_arg_4
 # )
 #
-# The index mapping above is NOT an assumption -- it was resolved empirically by
-# running probe_aave_args.py against AAVE_TX_USER_NE_ONBEHALF, where `user` is a
-# gateway contract and therefore differs from `onBehalfOf`:
+# The index mapping above is NOT an assumption -- it was resolved empirically
+# by replaying AAVE_TX_USER_NE_ONBEHALF (a probe script, since removed --
+# see CHANGELOG.md 0.0.1/0.0.9), where `user` is a gateway contract and
+# therefore differs from `onBehalfOf`:
 #     arg0 = 0xc02aaa39...  (WETH)                 = reserve
 #     arg1 = 0xd01607c3...  (WrappedTokenGatewayV3) = user
 #     arg2 = 0x029a0f3a...                          = onBehalfOf
@@ -212,6 +213,41 @@ VAULT_TX_V2 = "0xb9e554dc2a9569bdd4d6b8a1f8296caf07b52bfed5960fcfe541895f219852b
 # the `sender`, and the Safe is the `owner` -- which is exactly why every agent
 # here filters on the OWNER/onBehalfOf field and never on `sender`/`tx_from`.
 MORPHO_GENERAL_ADAPTER = "0x4a6c312ec70e8747a587ee860a0353cd42be0ae0"
+
+# ==========================================================================
+# MULTI-CHAIN SUPPORT -- Aave v3 and Morpho Blue only.
+#
+# Morpho Vaults (MORPHO_VAULT_UNIVERSE / MORPHO_VAULTS_IN_SCOPE above) stay
+# Ethereum-only for now: no Base vault addresses have been collected yet.
+#
+# The Base addresses below were found via web search and cross-checked
+# directly on Basescan (both show "Exact Match" verified source) -- same bar
+# as the Ethereum addresses above, but NOT yet confirmed by replaying a real
+# Base transaction: there is no Base fixture in this file, unlike every
+# Ethereum constant above. Treat these as needing your own independent
+# verification before any real deployment. See README "Verification".
+#
+# Morpho Blue's address is IDENTICAL on Ethereum and Base: Morpho deploys it
+# deterministically (CREATE2), confirmed independently on Basescan. This
+# means the audit line's own text cannot disambiguate a Base Morpho Blue
+# deposit from an Ethereum one by contract address alone -- see the
+# agent_morpho_blue_supply.py docstring and README for how this is handled
+# (chain-specific agent names / rule files, not chain-specific alert text).
+# ==========================================================================
+CHAINS = {
+    "ethereum": {
+        "chain": Chain.ethereum,
+        "rpc": "https://rpc.mevblocker.io",
+        "aave_pool": AAVE_V3_POOL,
+        "morpho_blue": MORPHO_BLUE,
+    },
+    "base": {
+        "chain": Chain.base,
+        "rpc": "https://mainnet.base.org",
+        "aave_pool": "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5",
+        "morpho_blue": MORPHO_BLUE,  # same address as Ethereum, see note above
+    },
+}
 
 
 def is_quiet_mode():
@@ -403,6 +439,7 @@ VARIABLE_SECTIONS = {
     "shares_minted": ("What was deposited", "Shares minted by this deposit"),
 
     # Where it landed -- protocol-specific receipt token / position
+    "pool_address": ("Where it landed", "Pool contract"),
     "atoken": ("Where it landed", "aToken contract"),
     "atoken_symbol": ("Where it landed", "aToken"),
     "atoken_balance": ("Where it landed", "Safe's new balance"),
@@ -412,6 +449,7 @@ VARIABLE_SECTIONS = {
     "vault_decimals": ("Where it landed", "Vault share decimals"),
     "shares_after_raw": ("Where it landed", "Safe's new share balance (raw, vault decimals)"),
     "assets_after_raw": ("Where it landed", "Currently redeemable for (raw, asset decimals)"),
+    "market_contract": ("Where it landed", "Morpho Blue contract"),
     "market_id": ("Where it landed", "Market id"),
     "collateral_token": ("Where it landed", "Collateral contract"),
     "collateral_symbol": ("Where it landed", "Collateral asset"),

@@ -10,28 +10,25 @@ WHY THIS MATTERS
     quota for nothing.
 
 WHAT IT DOES
-    For each Safe: reads balanceOf across the verified Morpho vault universe,
-    and reads Aave v3 getUserAccountData plus per-reserve aToken balances.
-    Nothing is written anywhere. This talks to a public RPC, not to
-    Hypernative, so it needs no Hypernative credentials and consumes no quota.
+    For each Safe, on EVERY chain in CHAINS (shared/common.py -- Ethereum and
+    Base): reads Aave v3 getUserAccountData plus per-reserve aToken balances.
+    Morpho vault balances are checked on Ethereum only (MORPHO_VAULT_UNIVERSE
+    has no Base entries yet). Nothing is written anywhere. This talks to each
+    chain's public RPC, not to Hypernative, so it needs no Hypernative
+    credentials and consumes no quota.
 
 USAGE
     1. Put the Safe addresses you want to check in SAFES_TO_CHECK below (or
        pass them as command-line arguments).
-    2. python3 tools/discover_positions.py [0xSafe1 0xSafe2 ...]
+    2. python3 discover_positions.py [0xSafe1 0xSafe2 ...]
     3. Copy the vaults it reports into MORPHO_VAULTS_IN_SCOPE in shared/common.py.
 """
 
-import os
 import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from web3 import Web3
 
-from shared.common import AAVE_V3_POOL, MORPHO_VAULT_UNIVERSE
-
-RPC_URL = "https://rpc.mevblocker.io"
+from shared.common import CHAINS, MORPHO_VAULT_UNIVERSE
 
 # PLACEHOLDER -- the Safe addresses you want to check. Also accepted as argv.
 SAFES_TO_CHECK = []
@@ -103,11 +100,11 @@ def check_morpho_vaults(w3, safe):
     return found
 
 
-def check_aave(w3, safe):
+def check_aave(w3, safe, pool_address):
     """Report the Safe's Aave v3 position and which reserves it supplies."""
     print("\n  Aave v3:")
     pool = w3.eth.contract(
-        address=Web3.to_checksum_address(AAVE_V3_POOL), abi=AAVE_POOL_ABI
+        address=Web3.to_checksum_address(pool_address), abi=AAVE_POOL_ABI
     )
     try:
         data = pool.functions.getUserAccountData(safe).call()
@@ -130,6 +127,7 @@ def check_aave(w3, safe):
         print(f"    error reading getReservesList: {exception}")
         return []
 
+    errored = []
     for reserve in reserves:
         try:
             atoken_address = pool.functions.getReserveAToken(reserve).call()
@@ -142,10 +140,20 @@ def check_aave(w3, safe):
                       f"   (reserve {reserve})")
                 found.append({"reserve": reserve, "atoken": atoken_address, "symbol": symbol})
         except Exception:
-            # A reserve that cannot be read is not worth failing the sweep over.
-            continue
+            # NOT the same as "not held": a public RPC's rate limit (429) lands
+            # here too. Collecting these separately, rather than silently
+            # treating them like a zero balance, is what catches the case
+            # where getUserAccountData above reports real collateral but the
+            # per-reserve loop below found no matching aToken -- that
+            # contradiction means a reserve was skipped, not that it's empty.
+            errored.append(reserve)
     if not found:
-        print("    (no aToken balances)")
+        print("    (no aToken balances found among the reserves that could be checked)")
+    if errored:
+        print(f"    NOTE: {len(errored)}/{len(reserves)} reserve(s) could not be checked "
+              f"(RPC error or rate limit) -- re-run to confirm nothing was missed:")
+        for reserve in errored:
+            print(f"      {reserve}")
     return found
 
 
@@ -154,23 +162,34 @@ def main():
     if not safes:
         print(__doc__)
         print("No Safe addresses given. Either pass them as arguments:")
-        print("    python3 tools/discover_positions.py 0xSafe1 0xSafe2")
+        print("    python3 discover_positions.py 0xSafe1 0xSafe2")
         print("or populate SAFES_TO_CHECK in this file.")
         return
 
-    w3 = Web3(Web3.HTTPProvider(RPC_URL))
-    if not w3.is_connected():
-        print(f"Could not connect to {RPC_URL}. Try another RPC endpoint.")
-        return
-    print(f"Connected to Ethereum mainnet at block {w3.eth.block_number}")
-
+    # Morpho vault balances are only checked on Ethereum -- MORPHO_VAULT_UNIVERSE
+    # has no Base entries yet. Aave v3 is checked on every chain in CHAINS.
     in_scope = {}
-    for raw_safe in safes:
-        safe = Web3.to_checksum_address(raw_safe)
-        print(f"\n{'=' * 78}\nSafe {safe}\n{'=' * 78}")
-        for vault in check_morpho_vaults(w3, safe):
-            in_scope[vault["address"]] = vault
-        check_aave(w3, safe)
+    for chain_key, chain_config in CHAINS.items():
+        # A timeout is REQUIRED here: public RPCs (mainnet.base.org especially)
+        # rate-limit (HTTP 429) under the burst of per-reserve calls check_aave
+        # makes, and web3.py's default retry middleware backs off on each 429
+        # with no overall time limit -- without this, a rate-limited run doesn't
+        # error, it just goes quiet for a very long time. If it's still slow
+        # with your own traffic, point RPC in CHAINS (shared/common.py) at a
+        # dedicated endpoint instead of the public one.
+        w3 = Web3(Web3.HTTPProvider(chain_config["rpc"], request_kwargs={"timeout": 15}))
+        if not w3.is_connected():
+            print(f"Could not connect to {chain_config['rpc']} ({chain_key}). Skipping.")
+            continue
+        print(f"\n{'#' * 78}\n{chain_key.upper()} -- connected at block {w3.eth.block_number}\n{'#' * 78}")
+
+        for raw_safe in safes:
+            safe = Web3.to_checksum_address(raw_safe)
+            print(f"\n{'=' * 78}\nSafe {safe}\n{'=' * 78}")
+            if chain_key == "ethereum":
+                for vault in check_morpho_vaults(w3, safe):
+                    in_scope[vault["address"]] = vault
+            check_aave(w3, safe, chain_config["aave_pool"])
 
     print(f"\n{'=' * 78}")
     if in_scope:
@@ -180,7 +199,7 @@ def main():
             print(f'    {{"address": "{vault["address"]}", "symbol": "{vault["symbol"]}"}},')
         print("]")
     else:
-        print("No Morpho vault positions found across the verified vault universe.")
+        print("No Morpho vault positions found across the verified vault universe (Ethereum only).")
         print("If you use a vault not in MORPHO_VAULT_UNIVERSE, add it to")
         print("shared/common.py first (verify the address on-chain before trusting it).")
 

@@ -10,8 +10,87 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pending your own configuration before a deployable release:
 
 - `SAFE_LIST_UUID`, notification channel id, the Safe addresses to monitor.
-- `MORPHO_VAULTS_IN_SCOPE`, from `tools/discover_positions.py`.
+- `MORPHO_VAULTS_IN_SCOPE`, from `discover_positions.py`.
 - Replay against a real monitored-Safe deposit; no fixture has one yet.
+- Replay a real Base deposit through the Aave v3 / Morpho Blue agents; no
+  Base fixture exists yet (Base addresses verified on Basescan only).
+
+## [0.0.9] - 2026-09-08
+
+Removed `tools/probe_aave_args.py` (its one job was already done and
+recorded; see 0.0.1) and moved `discover_positions.py` to the repo root.
+`tools/` no longer exists.
+
+### Removed
+
+- `tools/probe_aave_args.py`. The `emitted_arg_N` mapping it derived is
+  already hardcoded in `shared/common.py`; nothing imports this file, and
+  re-deriving that mapping is only ever needed if Aave changes the `Supply`
+  event, which is now undocumented as a re-runnable script rather than
+  removed as a capability -- see CHANGELOG history (0.0.1) for the record
+  of how it was derived.
+
+### Changed
+
+- `discover_positions.py` moved from `tools/` to the repo root -- it's a
+  script you run directly, same as the three `agent_*.py` files, not a
+  dependency of anything else. Invocation is now `python3
+  discover_positions.py ...` (no `tools/` prefix); the `sys.path` bootstrap
+  it needed inside `tools/` is gone too.
+
+## [0.0.8] - 2026-09-08
+
+Fixed `tools/discover_positions.py` appearing to hang, and a real
+misreporting bug it was masking. Found live: a Safe with a genuine $5 Aave
+v3 position on Base printed "no aToken balances" -- the reserve that
+actually held it had silently failed with a rate-limit error, caught by a
+blanket `except: continue` that treated "couldn't check" identically to
+"not held".
+
+### Fixed
+
+- `check_aave()` now collects and reports which reserves errored (RPC
+  failure or 429 rate limit) instead of silently skipping them, so a
+  nonzero collateral total with zero HOLDS lines is no longer a silent
+  contradiction -- it prints exactly which reserves need a re-run.
+- Added a 15s request timeout to each chain's `Web3.HTTPProvider`. Without
+  one, a rate-limited public RPC (`mainnet.base.org` especially) doesn't
+  error, it just goes quiet for a very long time under web3.py's default
+  retry-with-backoff behavior -- easy to mistake for a true hang.
+
+### Notes
+
+- Public RPCs, especially Base's, rate-limit under the burst of per-reserve
+  calls this script makes (2-4 calls per Aave reserve). If reserves keep
+  erroring on re-run, point `rpc` in `CHAINS` (`shared/common.py`) at a
+  dedicated endpoint instead of the public default.
+
+## [0.0.7] - 2026-09-08
+
+Added Base support for Aave v3 and Morpho Blue (Morpho Vaults stay
+Ethereum-only). `discover_positions.py` now sweeps every configured chain.
+
+### Added
+
+- `CHAINS` in `shared/common.py`: per-chain Aave v3 Pool / Morpho Blue /
+  RPC config, Ethereum and Base. `build_agent(chain_key=...)` in both agents
+  now builds and exports one agent + rule file per chain
+  (`rules/rule_*_<chain>.json`).
+- Base addresses (Aave v3 Pool, Morpho Blue) verified on Basescan (Exact
+  Match) -- not yet confirmed by replaying a real Base transaction.
+
+### Fixed
+
+- The Aave/Morpho Blue alert formatters hardcoded the Pool/Morpho Blue
+  address as a literal, which would have printed the Ethereum address on a
+  Base alert too. Now read from the triggering event's own
+  `emitting_contract` instead.
+
+### Known limitation
+
+- Morpho Blue deploys to the identical address on Ethereum and Base
+  (CREATE2), so that agent's alert text can't say which chain fired by
+  address alone -- disambiguated by agent name / rule file per chain instead.
 
 ## [0.0.6] - 2026-09-08
 

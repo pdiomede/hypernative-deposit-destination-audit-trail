@@ -1,9 +1,15 @@
 """
 Aave v3 deposit destination (audit trail)
 
-Fires on every Aave v3 `Supply` on Ethereum where the aTokens land on a
-monitored Safe, and emits one plain-English audit line answering "where did
-the money go".
+Fires on every Aave v3 `Supply` on a supported chain (Ethereum or Base, see
+CHAINS in shared/common.py) where the aTokens land on a monitored Safe, and
+emits one plain-English audit line answering "where did the money go".
+
+Base support: the Pool address differs per chain (unlike Morpho Blue, whose
+address happens to be identical on both -- see agent_morpho_blue_supply.py),
+so the alert text's own Pool address already disambiguates which chain fired.
+Verified via Basescan (Exact Match) but not yet confirmed by replaying a real
+Base transaction -- there is no Base fixture below, only Ethereum ones.
 
 WHAT THE ALERT CONTAINS
     protocol (Aave v3) · destination reserve named by asset, with the Pool
@@ -25,7 +31,8 @@ WHY THE FILTER IS ON onBehalfOf
     fact, because something other than the holding Safe initiated the deposit.
 
 VERIFIED FACTS THIS FILE DEPENDS ON
-    * emitted_arg_N numbering: resolved empirically by tools/probe_aave_args.py.
+    * emitted_arg_N numbering: resolved empirically by replaying a real tx
+      where `user` and `onBehalfOf` differ (see CHANGELOG.md 0.0.1).
       Hypernative numbers by DECLARATION order, indexed args included. See
       shared/common.py for the recorded probe output.
     * aTokens mint to onBehalfOf, and the aToken address is NOT in the event,
@@ -50,8 +57,8 @@ from invariantive.model.trigger import Condition
 # bottom of this file. Do not remove them.
 from shared.common import (AAVE_ARG_AMOUNT, AAVE_ARG_ONBEHALFOF, AAVE_ARG_RESERVE,
                            AAVE_ARG_USER, AAVE_EVENT, AAVE_TX_USDC_SMALL,
-                           AAVE_TX_USDT_SIMPLE, AAVE_TX_USER_NE_ONBEHALF, AAVE_V3_POOL,
-                           CHAIN, SAFE_LIST_UUID, NOTIFICATION_CHANNEL_IDS,
+                           AAVE_TX_USDT_SIMPLE, AAVE_TX_USER_NE_ONBEHALF,
+                           CHAINS, SAFE_LIST_UUID, NOTIFICATION_CHANNEL_IDS,
                            SEVERITY, is_quiet_mode, print_findings)
 
 AGENT_NAME = "Aave v3 deposit destination (audit trail)"
@@ -74,8 +81,13 @@ def build_audit_line(extracted_variables):
     try:
         # Constants live inside the function: the sandbox gives this code no
         # access to module-level names.
-        pool_address = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
         safes_list_uuid = "SAFE_LIST_UUID"
+
+        # Read from the trigger's own "emitting_contract" rather than
+        # hardcoded, since this same function serves both the Ethereum and
+        # Base agents (see CHAINS in shared/common.py) -- a literal here
+        # would print the wrong Pool address on whichever chain isn't first.
+        pool_address = extracted_variables.get("pool_address")
 
         safe_address = extracted_variables.get("safe_address")
         caller_user = extracted_variables.get("caller_user")
@@ -169,8 +181,11 @@ def extract_audit_line(extracted_variables):
     return formatted.get("audit_line")
 
 
-def build_agent(apply_safe_filter=True):
-    """Assemble the agent.
+def build_agent(chain_key="ethereum", apply_safe_filter=True):
+    """Assemble the agent for one chain.
+
+    chain_key selects the chain's Pool address from CHAINS in
+    shared/common.py ("ethereum" or "base").
 
     apply_safe_filter=True  -> production shape, only monitored Safes.
     apply_safe_filter=False -> test shape, every Aave v3 supply, so the fixture
@@ -178,8 +193,12 @@ def build_agent(apply_safe_filter=True):
                                extraction and formatting path against real
                                historical transactions.
                                NEVER DEPLOY the unfiltered shape: it would
-                               alert on every Aave deposit on Ethereum.
+                               alert on every Aave deposit on the chain.
     """
+    chain_config = CHAINS[chain_key]
+    chain = chain_config["chain"]
+    pool_address = chain_config["aave_pool"]
+
     # ----------------------------------------------------------------------
     # 1. TRIGGER: any Supply emitted by the Aave v3 Pool. Pinning
     #    output_index="emitting_contract" to the Pool guarantees we only react
@@ -187,8 +206,8 @@ def build_agent(apply_safe_filter=True):
     # ----------------------------------------------------------------------
     agent = Agent(
         trigger=EventTrigger(
-            chain=CHAIN,
-            contract_address=AAVE_V3_POOL,
+            chain=chain,
+            contract_address=pool_address,
             # The simple name is enough: verified that the SDK resolves
             # `Supply` through the EIP-1967 proxy, even though the Pool
             # address's own verified ABI is the proxy's. If a future SDK stops
@@ -200,7 +219,7 @@ def build_agent(apply_safe_filter=True):
             event_sig=AAVE_EVENT,
             output_index="emitting_contract",
             operator="compare_exact",
-            operands=[AAVE_V3_POOL],
+            operands=[pool_address],
         )
     )
 
@@ -229,6 +248,10 @@ def build_agent(apply_safe_filter=True):
     # ----------------------------------------------------------------------
     # 3. CONTEXT: the event args plus the transaction identity.
     # ----------------------------------------------------------------------
+    # The Pool address that actually emitted this event -- read dynamically
+    # rather than hardcoded in build_audit_line(), since the SAME formatter
+    # function is used for every chain's agent (see CHAINS in shared/common.py).
+    agent.add_variable(ContextVariable(output_index="emitting_contract", var_name="pool_address"))
     agent.add_variable(ContextVariable(output_index=AAVE_ARG_RESERVE, var_name="reserve"))
     agent.add_variable(ContextVariable(output_index=AAVE_ARG_USER, var_name="caller_user"))
     agent.add_variable(ContextVariable(output_index=AAVE_ARG_ONBEHALFOF, var_name="safe_address"))
@@ -248,7 +271,7 @@ def build_agent(apply_safe_filter=True):
     # ----------------------------------------------------------------------
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN,
+            chain=chain,
             contract_address="extracted_variables.reserve",
             func_sig="decimals()",
             input=[],
@@ -260,7 +283,7 @@ def build_agent(apply_safe_filter=True):
     )
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN,
+            chain=chain,
             contract_address="extracted_variables.reserve",
             func_sig="symbol()",
             input=[],
@@ -285,8 +308,8 @@ def build_agent(apply_safe_filter=True):
     # ----------------------------------------------------------------------
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN,
-            contract_address=AAVE_V3_POOL,
+            chain=chain,
+            contract_address=pool_address,
             func_sig="getReserveAToken",
             input=["extracted_variables.reserve"],
             output_index="output_arg_0",
@@ -295,7 +318,7 @@ def build_agent(apply_safe_filter=True):
     )
     agent.add_variable(
         GenericContractReadVariable(
-            chain=CHAIN,
+            chain=chain,
             contract_address="extracted_variables.atoken",
             func_sig="symbol()",
             input=[],
@@ -313,7 +336,7 @@ def build_agent(apply_safe_filter=True):
     # ----------------------------------------------------------------------
     agent.add_variable(
         TokenBalanceVariable(
-            chain=CHAIN,
+            chain=chain,
             token_address="extracted_variables.atoken",
             token_holder_address="extracted_variables.safe_address",
             scale_to_decimals=True,
@@ -353,10 +376,13 @@ def build_agent(apply_safe_filter=True):
     return agent
 
 
-# Production shape, and the rule export. save_config() runs at module level,
-# ABOVE the __main__ guard, so the JSON is produced even if a test run errors.
-agent = build_agent(apply_safe_filter=True)
-agent.save_config("rules/rule_aave_v3_supply.json")
+# Production shape, and the rule export -- one agent per chain in CHAINS.
+# save_config() runs at module level, ABOVE the __main__ guard, so the JSON
+# is produced even if a test run errors.
+agents = {}
+for chain_key in CHAINS:
+    agents[chain_key] = build_agent(chain_key=chain_key, apply_safe_filter=True)
+    agents[chain_key].save_config(f"rules/rule_aave_v3_supply_{chain_key}.json")
 
 
 # ==========================================================================
@@ -369,30 +395,34 @@ agent.save_config("rules/rule_aave_v3_supply.json")
 #      (headers: x-client-id, x-client-secret).
 #   2. SAFE_LIST_UUID in shared/common.py points at a real List of the Safes you
 #      want to monitor. A wrong UUID gives a permanently silent agent.
-#   3. Custom-agent quota: check your plan's limit.
+#   3. Custom-agent quota: check your plan's limit -- this now deploys one
+#      agent PER CHAIN in CHAINS, so it counts double against that quota.
 #
 # A newly created custom agent takes up to 3 minutes to become active, so an
 # immediate smoke test can look like a false negative.
 # ==========================================================================
-# agent_id = agent.deploy(
-#     agent_name=AGENT_NAME,
-#     severity=SEVERITY,                                  # "Info"
-#     channels_configurations=NOTIFICATION_CHANNEL_IDS,   # e.g. [{"id": 1337}]
-# )
-# print(f"deployed agent id: {agent_id}")
+# for chain_key, chain_agent in agents.items():
+#     agent_id = chain_agent.deploy(
+#         agent_name=f"{AGENT_NAME} ({chain_key})",
+#         severity=SEVERITY,                                  # "Info"
+#         channels_configurations=NOTIFICATION_CHANNEL_IDS,   # e.g. [{"id": 1337}]
+#     )
+#     print(f"deployed {chain_key} agent id: {agent_id}")
 
 
 if __name__ == "__main__":
     # Replay against REAL historical Ethereum mainnet Aave v3 supply txs.
+    # No Base fixture exists yet, so only Ethereum is exercised here -- Base
+    # support is otherwise identical code, just untested by replay so far.
     #
     # The fixtures are not monitored Safes, so we build the UNFILTERED shape
     # here to exercise the full extraction and formatting path. The production
-    # `agent` above (with the Safe filter) is what save_config/deploy use.
+    # `agents` above (with the Safe filter) are what save_config/deploy use.
     #
     # --quiet / -q : print only the ALERT lines, no debug variable dump.
     # Demo-friendly for screen-sharing with a customer.
     quiet = is_quiet_mode()
-    test_agent = build_agent(apply_safe_filter=False)
+    test_agent = build_agent(chain_key="ethereum", apply_safe_filter=False)
 
     fixtures = [
         (AAVE_TX_USDT_SIMPLE, "10,000 USDT, user == onBehalfOf"),
@@ -400,5 +430,5 @@ if __name__ == "__main__":
         (AAVE_TX_USDC_SMALL, "10.513985 USDC, user == onBehalfOf"),
     ]
     for tx_hash, label in fixtures:
-        result = test_agent.run(RunConfig(chain=CHAIN, hashes=[tx_hash]))
+        result = test_agent.run(RunConfig(chain=CHAINS["ethereum"]["chain"], hashes=[tx_hash]))
         print_findings(result, f"Aave v3: {label}", quiet=quiet)

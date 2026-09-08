@@ -348,10 +348,17 @@ def print_pool_toxicity(pool_id, chain_key, toxicity, indent):
 
 
 def check_morpho_vaults(w3, safe, chain_key=None, toxicity=None):
-    """Report every verified Morpho vault where this Safe holds shares."""
-    print("\n  Morpho vaults:")
-    found = []
+    """Report which of the KNOWN Morpho vaults this Safe holds shares in.
+
+    Deliberately not "every vault": there is no registry lookup here, just a
+    fixed list (MORPHO_VAULT_UNIVERSE), so this can only ever report on the
+    vaults in that list. Aave reserves, by contrast, are enumerated live
+    from the Pool. The wording throughout says which was checked so a blank
+    result is never mistaken for "holds no vaults".
+    """
     total_vaults = len(MORPHO_VAULT_UNIVERSE)
+    print(f"\n  Morpho vaults (checking {total_vaults} known vaults):")
+    found = []
     for index, vault in enumerate(MORPHO_VAULT_UNIVERSE, 1):
         progress("Morpho vaults", index, total_vaults)
         try:
@@ -390,7 +397,8 @@ def check_morpho_vaults(w3, safe, chain_key=None, toxicity=None):
             print(f"    error  {label:<12} {exception}")
     progress_done()
     if not found:
-        print("    (no balances in the verified vault universe)")
+        print(f"    (none of the {total_vaults} known vaults held -- "
+              f"vaults outside this list are not checked)")
     return found
 
 
@@ -538,9 +546,17 @@ def main():
             print(f'    {{"address": "{vault["address"]}", "symbol": "{vault["symbol"]}"}},')
         print("]")
     else:
-        print("No Morpho vault positions found across the verified vault universe (Ethereum only).")
-        print("If you use a vault not in MORPHO_VAULT_UNIVERSE, add it to")
-        print("shared/common.py first (verify the address on-chain before trusting it).")
+        # Say what was actually checked, not "nothing found". Aave reserves
+        # are enumerated live from the Pool, but Morpho vaults come from a
+        # hardcoded list -- so a vault outside it is invisible here, and
+        # phrasing this as a clean result would be a false negative.
+        print(f"Morpho vaults: none held, of the {len(MORPHO_VAULT_UNIVERSE)} "
+              f"known vaults checked (Ethereum only).")
+        print("This is NOT proof the Safe holds no Morpho vaults: unlike Aave")
+        print("reserves, which are enumerated live from the Pool, vaults are")
+        print("matched against a fixed list (MORPHO_VAULT_UNIVERSE in")
+        print("shared/common.py). A vault outside that list cannot be seen here.")
+        print("Add its address there to include it (verify on-chain first).")
 
 
 if __name__ == "__main__":

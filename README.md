@@ -65,15 +65,15 @@ python3 discover_positions.py 0xc540D6E077A3E70CC20B0E15AC50c8aFBE8fAe68
 
 ```
 ##############################################################################
-ETHEREUM -- connected at block 25932245
+BASE -- connected at block 51046369  via custom RPC (base-mainnet.g.alchemy.com)
 ##############################################################################
 
 ==============================================================================
 Safe 0xc540D6E077A3E70CC20B0E15AC50c8aFBE8fAe68
 ==============================================================================
 
-  Morpho vaults:
-    (no balances in the verified vault universe)
+  Morpho vaults (checking 8 known vaults):
+    (none of the 8 known vaults held -- vaults outside this list are not checked)
 
   Aave v3:
     total collateral ~ $5.00 | total debt ~ $0.00
@@ -90,6 +90,12 @@ Safe 0xc540D6E077A3E70CC20B0E15AC50c8aFBE8fAe68
 
 It sweeps **Ethereum and Base**, checking every current Aave v3 reserve plus
 the known Morpho vaults. Pass several addresses to check them all at once.
+
+⚠️ **Aave and Morpho coverage differ.** Aave reserves are enumerated live
+from the Pool, so *every* reserve is checked. Morpho vaults are matched
+against a fixed list of 8 (`MORPHO_VAULT_UNIVERSE` in `shared/common.py`),
+Ethereum only — so "none held" means none *of those 8*, and a vault outside
+the list is invisible to the tool. Add its address there to include it.
 
 **Pool toxicity** (the indented block above) is optional and only runs if you
 put Hypernative API credentials in `config.env` — it screens *who else* is in

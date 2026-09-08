@@ -15,6 +15,32 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Morpho Blue agent (Aave v3 on Base
   is done, see 0.0.13); no Morpho Blue Base fixture exists yet.
 
+## [0.0.17] - 2026-09-08
+
+Reworded the Morpho vault result so a blank one can't be read as a clean
+bill of health.
+
+### Fixed
+
+- "No Morpho vault positions found across the verified vault universe" read
+  like "this Safe holds no Morpho vaults". It never meant that. Aave
+  reserves are enumerated live from the Pool via `getReservesList()`, but
+  Morpho vaults are matched against a **fixed list of 8**
+  (`MORPHO_VAULT_UNIVERSE`) -- so a Safe holding any vault outside that list
+  got a confident-sounding "none found" while a real position went
+  unreported. A false negative, stated as a result.
+- All three messages now say what was actually checked: the header
+  (`Morpho vaults (checking 8 known vaults)`), the per-chain line, and the
+  summary, which states outright that this is not proof of absence and
+  names the list to extend.
+
+### Notes
+
+- Not fixed, only surfaced: the blind spot itself remains. Closing it
+  properly means enumerating vaults from the MetaMorpho factory's creation
+  events, the way Aave's reserve list is read live -- and doing it for Base
+  as well, which has no vault entries at all today.
+
 ## [0.0.16] - 2026-09-08
 
 Made the long sweeps visibly alive, and attacked the "could not be checked"

@@ -66,7 +66,8 @@ from shared.common import (CHAIN, SAFE_LIST_UUID, MORPHO_VAULTS_IN_SCOPE,
                            VAULT_ARG_OWNER, VAULT_ARG_SENDER, VAULT_ARG_SHARES,
                            VAULT_EVENT, VAULT_TX_SENDER_NE_OWNER, VAULT_TX_USDT_SIMPLE,
                            VAULT_TX_V2, VAULT_TX_WETH_OFFSET0, get_cli_flag,
-                           get_cli_tx_hashes, is_quiet_mode, print_findings)
+                           get_cli_tx_hashes, is_quiet_mode, print_findings,
+                           progress, progress_done, progress_note)
 
 
 def build_audit_line(extracted_variables):
@@ -426,7 +427,15 @@ if __name__ == "__main__":
             ("0x04422053aDDbc9bB2759b248B574e3FCA76Bc145", VAULT_TX_V2,
              "kUSDC VAULT V2: 2,042,581.5 USDC, same event shape as V1"),
         ]
-    for vault_address, tx_hash, label in fixtures:
+    # Progress goes to stderr and shows even under --quiet: on a live demo,
+    # silence is exactly when you most want to know it is still working.
+    # Each vault needs its own agent (the vault address is a build-time
+    # parameter), so the build happens inside the loop -- which is why the
+    # bar covers building and replaying together.
+    for index, (vault_address, tx_hash, label) in enumerate(fixtures, 1):
+        progress_note(f"building agent for vault {vault_address[:10]}...")
         test_agent = build_agent(vault_address, apply_safe_filter=False)
+        progress("Replaying", index, len(fixtures))
         result = test_agent.run(RunConfig(chain=CHAIN, hashes=[tx_hash]))
+        progress_done()
         print_findings(result, f"Morpho Vault: {label}", quiet=quiet)

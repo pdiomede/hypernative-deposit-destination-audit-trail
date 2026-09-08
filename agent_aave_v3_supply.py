@@ -60,7 +60,8 @@ from shared.common import (AAVE_ARG_AMOUNT, AAVE_ARG_ONBEHALFOF, AAVE_ARG_RESERV
                            AAVE_TX_USDT_SIMPLE, AAVE_TX_USER_NE_ONBEHALF,
                            CHAINS, SAFE_LIST_UUID, NOTIFICATION_CHANNEL_IDS,
                            SEVERITY, detect_chain_for_tx, get_cli_flag,
-                           get_cli_tx_hashes, is_quiet_mode, print_findings)
+                           get_cli_tx_hashes, is_quiet_mode, print_findings,
+                           progress, progress_done, progress_note)
 
 AGENT_NAME = "Aave v3 deposit destination (audit trail)"
 
@@ -415,9 +416,14 @@ def build_agent(chain_key="ethereum", apply_safe_filter=True):
 # save_config() runs at module level, ABOVE the __main__ guard, so the JSON
 # is produced even if a test run errors.
 agents = {}
-for chain_key in CHAINS:
+for _build_index, chain_key in enumerate(CHAINS, 1):
+    # Silent otherwise: each build validates its contract reads against
+    # Hypernative's ABI service, so this is seconds of nothing on screen
+    # before the first line of output appears.
+    progress("Building agents", _build_index, len(CHAINS))
     agents[chain_key] = build_agent(chain_key=chain_key, apply_safe_filter=True)
     agents[chain_key].save_config(f"rules/rule_aave_v3_supply_{chain_key}.json")
+progress_done()
 
 
 # ==========================================================================
@@ -468,7 +474,9 @@ if __name__ == "__main__":
     # wins. Detected from the first hash: replaying hashes from two different
     # chains in one command isn't supported (pass them separately).
     if chain_key is None and custom_hashes:
+        progress_note("detecting which chain this transaction is on...")
         chain_key = detect_chain_for_tx(custom_hashes[0])
+        progress_done()
         if chain_key is None:
             print(f"Transaction {custom_hashes[0]} was not found on any configured "
                   f"chain ({', '.join(CHAINS)}).")
@@ -479,7 +487,9 @@ if __name__ == "__main__":
     if chain_key is None:
         chain_key = "ethereum"
 
+    progress_note("building agent...")
     test_agent = build_agent(chain_key=chain_key, apply_safe_filter=False)
+    progress_done()
 
     if custom_hashes:
         fixtures = [(tx_hash, "custom tx") for tx_hash in custom_hashes]
@@ -489,6 +499,11 @@ if __name__ == "__main__":
             (AAVE_TX_USER_NE_ONBEHALF, "0.081 WETH via WrappedTokenGateway, user != onBehalfOf"),
             (AAVE_TX_USDC_SMALL, "10.513985 USDC, user == onBehalfOf"),
         ]
-    for tx_hash, label in fixtures:
+    # Each run() is seconds of contract reads and balance lookups with
+    # nothing on screen. Shown in --quiet too: on a live demo, silence is
+    # exactly when you most want to know it is still working.
+    for index, (tx_hash, label) in enumerate(fixtures, 1):
+        progress("Replaying", index, len(fixtures))
         result = test_agent.run(RunConfig(chain=CHAINS[chain_key]["chain"], hashes=[tx_hash]))
+        progress_done()
         print_findings(result, f"Aave v3 ({chain_key}): {label}", quiet=quiet)

@@ -34,6 +34,7 @@ the constants it needs inside its own body. The duplication is deliberate.
 
 import os
 import re
+import sys
 
 from invariantive.common.consts import Chain
 
@@ -248,6 +249,60 @@ CHAINS = {
         "morpho_blue": MORPHO_BLUE,  # same address as Ethereum, see note above
     },
 }
+
+
+# --------------------------------------------------------------------------
+# Transient progress, written to STDERR.
+#
+# Every tool here has stretches where it works in silence: discover_positions
+# checks 67 Aave reserves and only prints the ones held, and each agent's
+# agent.run() takes seconds per transaction with nothing on screen. Both have
+# been mistaken for a hang. These lines say "still working" without touching
+# the results.
+#
+# stderr, not stdout: the results are what gets piped, grepped and
+# screenshotted, and a progress bar has no business in them. Gated on
+# stderr's own isatty (rather than stdout's, as is_terminal() below does)
+# so `... > out.txt` still shows the bar on screen while writing a clean file.
+#
+# ASCII bar rather than block glyphs, which render unpredictably over SSH
+# and in recorded terminals.
+# --------------------------------------------------------------------------
+PROGRESS_BAR_WIDTH = 28
+
+
+def progress_enabled():
+    return bool(getattr(sys.stderr, "isatty", lambda: False)())
+
+
+def progress(label, done, total):
+    """Draw a progress bar for a loop whose length is known up front."""
+    if not progress_enabled():
+        return
+    filled = int(PROGRESS_BAR_WIDTH * done / total) if total else 0
+    bar = "#" * filled + "-" * (PROGRESS_BAR_WIDTH - filled)
+    sys.stderr.write(f"\r\033[K    {label}  [{bar}]  {done}/{total}")
+    sys.stderr.flush()
+
+
+def progress_note(message):
+    """Transient status for work with no knowable duration (an HTTP call)."""
+    if not progress_enabled():
+        return
+    sys.stderr.write(f"\r\033[K    {message}")
+    sys.stderr.flush()
+
+
+def progress_done():
+    """Erase the transient line.
+
+    Must run before ANY real output, or a half-drawn bar is left stranded
+    above a results line.
+    """
+    if not progress_enabled():
+        return
+    sys.stderr.write("\r\033[K")
+    sys.stderr.flush()
 
 
 def chain_rpc_url(chain_key):

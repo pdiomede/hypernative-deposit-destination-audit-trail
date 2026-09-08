@@ -90,7 +90,8 @@ from shared.common import (CHAINS, SAFE_LIST_UUID, MORPHO_ARG_ASSETS,
                            MORPHO_TX_USDC_LARGE, MORPHO_TX_WETH_18DP,
                            NOTIFICATION_CHANNEL_IDS, SEVERITY, detect_chain_for_tx,
                            get_cli_flag, get_cli_tx_hashes, is_quiet_mode,
-                           print_findings)
+                           print_findings, progress, progress_done,
+                           progress_note)
 
 AGENT_NAME = "Morpho Blue deposit destination (audit trail)"
 
@@ -410,9 +411,12 @@ def build_agent(chain_key="ethereum", apply_safe_filter=True):
 # AND THE SAME-ADDRESS QUIRK" for why each chain gets its own agent/rule file
 # even though the contract address is identical across them.
 agents = {}
-for chain_key in CHAINS:
+for _build_index, chain_key in enumerate(CHAINS, 1):
+    # Seconds of ABI validation per chain, silent otherwise.
+    progress("Building agents", _build_index, len(CHAINS))
     agents[chain_key] = build_agent(chain_key=chain_key, apply_safe_filter=True)
     agents[chain_key].save_config(f"rules/rule_morpho_blue_supply_{chain_key}.json")
+progress_done()
 
 
 # ==========================================================================
@@ -452,7 +456,9 @@ if __name__ == "__main__":
     # say which chain it is from, so find out rather than failing on the
     # default. An explicit --chain= always wins.
     if chain_key is None and custom_hashes:
+        progress_note("detecting which chain this transaction is on...")
         chain_key = detect_chain_for_tx(custom_hashes[0])
+        progress_done()
         if chain_key is None:
             print(f"Transaction {custom_hashes[0]} was not found on any configured "
                   f"chain ({', '.join(CHAINS)}).")
@@ -463,7 +469,9 @@ if __name__ == "__main__":
     if chain_key is None:
         chain_key = "ethereum"
 
+    progress_note("building agent...")
     test_agent = build_agent(chain_key=chain_key, apply_safe_filter=False)
+    progress_done()
 
     if custom_hashes:
         fixtures = [(tx_hash, "custom tx") for tx_hash in custom_hashes]
@@ -473,6 +481,9 @@ if __name__ == "__main__":
             (MORPHO_TX_WETH_18DP, "0.001 WETH, 18-decimal case"),
             (MORPHO_TX_CALLER_NE_ONBEHALF, "1,007.278549 USDC via router, caller != onBehalf"),
         ]
-    for tx_hash, label in fixtures:
+    # Each run() is seconds of market reads with nothing on screen.
+    for index, (tx_hash, label) in enumerate(fixtures, 1):
+        progress("Replaying", index, len(fixtures))
         result = test_agent.run(RunConfig(chain=CHAINS[chain_key]["chain"], hashes=[tx_hash]))
+        progress_done()
         print_findings(result, f"Morpho Blue ({chain_key}): {label}", quiet=quiet)

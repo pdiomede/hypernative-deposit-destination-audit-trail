@@ -15,6 +15,30 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Morpho Blue agent (Aave v3 on Base
   is done, see 0.0.13); no Morpho Blue Base fixture exists yet.
 
+## [0.0.18] - 2026-09-08
+
+The progress bar now covers all four tools, not just the position sweep.
+
+### Added
+
+- `agent_aave_v3_supply.py`, `agent_morpho_blue_supply.py` and
+  `agent_morpho_vault_deposit.py` show the same transient progress bar as
+  `discover_positions.py`, over the three stretches that used to look
+  hung: building one agent per chain, auto-detecting which chain a tx hash
+  is on, and replaying each fixture. Replaying a single tx takes tens of
+  seconds with nothing printed until it finishes.
+- Progress shows under `--quiet` too. That's deliberate: `--quiet` prints
+  only the alert lines, so it is exactly the mode in which a live demo
+  looks frozen.
+
+### Changed
+
+- The progress helpers moved from `discover_positions.py` into
+  `shared/common.py` so all four tools use one implementation instead of a
+  copy each. No behaviour change: still stderr-only, still gated on
+  `stderr.isatty()`, so piped or redirected stdout is byte-identical to
+  before and nothing is emitted at all when stderr isn't a terminal.
+
 ## [0.0.17] - 2026-09-08
 
 Reworded the Morpho vault result so a blank one can't be read as a clean

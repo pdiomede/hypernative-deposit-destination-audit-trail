@@ -50,7 +50,8 @@ import requests
 from web3 import Web3
 
 from shared.common import (CHAINS, MORPHO_VAULT_UNIVERSE, chain_rpc_url,
-                           describe_rpc_url)
+                           describe_rpc_url, progress, progress_done,
+                           progress_note)
 
 # Public RPCs rate-limit (HTTP 429) under the burst of calls a full sweep
 # makes -- ~200 sequential reads for 67 Aave reserves. Those failures are
@@ -180,59 +181,6 @@ def pool_toxicity_policy_ids(credentials):
     preferred = [policy for policy in policies if policy.get("name") == PREFERRED_POLICY_NAME]
     chosen = preferred[0] if preferred else policies[0]
     return [chosen["id"]]
-
-
-# --------------------------------------------------------------------------
-# Transient progress, written to STDERR.
-#
-# The sweeps only print when they FIND something, so checking 67 Aave
-# reserves looks like a hang for a minute or more. These lines say "still
-# working" without touching the results.
-#
-# stderr, not stdout: the results are what gets piped, grepped and
-# screenshotted, and a progress bar has no business in them. Gating on
-# stderr's own isatty (rather than stdout's, as shared/common.py's
-# is_terminal() does) means `... > out.txt` still shows the bar on screen
-# while writing a clean file.
-#
-# ASCII bar rather than block glyphs, which render unpredictably over SSH
-# and in recorded terminals.
-# --------------------------------------------------------------------------
-PROGRESS_BAR_WIDTH = 28
-
-
-def progress_enabled():
-    return bool(getattr(sys.stderr, "isatty", lambda: False)())
-
-
-def progress(label, done, total):
-    """Draw a progress bar for a loop whose length is known up front."""
-    if not progress_enabled():
-        return
-    filled = int(PROGRESS_BAR_WIDTH * done / total) if total else 0
-    bar = "#" * filled + "-" * (PROGRESS_BAR_WIDTH - filled)
-    sys.stderr.write(f"\r\033[K    {label}  [{bar}]  {done}/{total}")
-    sys.stderr.flush()
-
-
-def progress_note(message):
-    """Transient status for work with no knowable duration (an HTTP call)."""
-    if not progress_enabled():
-        return
-    sys.stderr.write(f"\r\033[K    {message}")
-    sys.stderr.flush()
-
-
-def progress_done():
-    """Erase the transient line.
-
-    Must run before ANY real output, or a half-drawn bar is left stranded
-    above a results line.
-    """
-    if not progress_enabled():
-        return
-    sys.stderr.write("\r\033[K")
-    sys.stderr.flush()
 
 
 def format_toxicity_percentage(value):

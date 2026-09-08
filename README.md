@@ -175,6 +175,12 @@ paragraph break is folded back to a space in that case, so each finding
 stays greppable on one line (`NO_COLOR=1` keeps the wrapping but drops the
 colour).
 
+All four tools show a progress bar while they work — replaying a tx or
+sweeping 67 Aave reserves takes tens of seconds with nothing to print until
+it's done, and the bar is what tells you it isn't stuck. It's drawn on
+stderr and only when that's a terminal, so piping or redirecting output
+gives you exactly the same bytes as before, with no escape codes.
+
 ---
 
 ## Deploying it for continuous monitoring

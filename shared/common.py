@@ -288,6 +288,33 @@ def get_cli_flag(name, default=None):
     return default
 
 
+def detect_chain_for_tx(tx_hash):
+    """Which chain in CHAINS actually has this transaction? None if neither.
+
+    A tx hash carries no chain information -- a Base hash is indistinguishable
+    from an Ethereum one until a node is asked. Without this, replaying a Base
+    transaction without `--chain=base` fails deep inside the SDK with a raw
+    TransactionNotFound traceback that never mentions the chain, which reads
+    like a broken tool rather than "wrong chain".
+
+    Cheap: one receipt lookup per chain against the same public RPCs
+    discover_positions.py uses, short timeout, first hit wins.
+    """
+    from web3 import Web3
+
+    for chain_key, chain_config in CHAINS.items():
+        try:
+            w3 = Web3(Web3.HTTPProvider(chain_config["rpc"], request_kwargs={"timeout": 10}))
+            w3.eth.get_transaction_receipt(tx_hash)
+            return chain_key
+        except Exception:
+            # Not on this chain, or the RPC is unreachable/rate-limited. Either
+            # way there is nothing to report per-chain -- the caller only needs
+            # to know whether ANY configured chain had it.
+            continue
+    return None
+
+
 # --------------------------------------------------------------------------
 # Terminal presentation for --quiet. Local display only.
 #
@@ -562,6 +589,10 @@ def print_variables(variables):
         if not lines:
             continue
         lines.sort(key=lambda pair: (pair[0] is None, (pair[0] or "").lower()))
+        # Blank line before every section header, including the first: it
+        # separates the sections from each other and the first one from the
+        # alert text above it.
+        print()
         print(f"  {section}:")
         for label, value in lines:
             if label is None:

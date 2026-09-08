@@ -12,8 +12,32 @@ Pending your own configuration before a deployable release:
 - `SAFE_LIST_UUID`, notification channel id, the Safe addresses to monitor.
 - `MORPHO_VAULTS_IN_SCOPE`, from `discover_positions.py`.
 - Replay against a real monitored-Safe deposit; no fixture has one yet.
-- Replay a real Base deposit through the Aave v3 / Morpho Blue agents; no
-  Base fixture exists yet (Base addresses verified on Basescan only).
+- Replay a real Base deposit through the Morpho Blue agent (Aave v3 on Base
+  is done, see 0.0.13); no Morpho Blue Base fixture exists yet.
+
+## [0.0.13] - 2026-09-08
+
+Auto-detect which chain a tx hash belongs to, and space out the grouped
+output. Base is now proven against a real deposit, not just address checks.
+
+### Added
+
+- `detect_chain_for_tx()` in `shared/common.py`. When `--chain=` isn't given,
+  the Aave v3 and Morpho Blue agents find the chain that actually has the
+  transaction and announce it, instead of assuming Ethereum. An explicit
+  `--chain=` still wins. A hash on no configured chain now prints two clear
+  lines and exits 1, rather than a 40-line `TransactionNotFound` traceback
+  from inside the SDK that never mentions the chain.
+- Blank line before each section header in the grouped view (`Who:`,
+  `What was deposited:`, ...), so the sections separate visually.
+
+### Verified
+
+- Replayed a real **Base** Aave v3 deposit end to end
+  (`0x38eee4c5...dcdc162af`): the agent resolved the Base Pool, Base USDC and
+  `aBasUSDC` on its own, with correct decimals and balance. This closes the
+  "Base untested by fixture replay" gap for Aave v3 — the Base addresses are
+  no longer only Basescan-verified.
 
 ## [0.0.12] - 2026-09-08
 

@@ -88,8 +88,9 @@ from shared.common import (CHAINS, SAFE_LIST_UUID, MORPHO_ARG_ASSETS,
                            MORPHO_ARG_CALLER, MORPHO_ARG_MARKET_ID, MORPHO_ARG_ONBEHALF,
                            MORPHO_ARG_SHARES, MORPHO_TX_CALLER_NE_ONBEHALF,
                            MORPHO_TX_USDC_LARGE, MORPHO_TX_WETH_18DP,
-                           NOTIFICATION_CHANNEL_IDS, SEVERITY, get_cli_flag,
-                           get_cli_tx_hashes, is_quiet_mode, print_findings)
+                           NOTIFICATION_CHANNEL_IDS, SEVERITY, detect_chain_for_tx,
+                           get_cli_flag, get_cli_tx_hashes, is_quiet_mode,
+                           print_findings)
 
 AGENT_NAME = "Morpho Blue deposit destination (audit trail)"
 
@@ -444,8 +445,24 @@ if __name__ == "__main__":
     # --quiet / -q : print only the ALERT lines, no debug variable dump.
     # Demo-friendly for screen-sharing with a customer.
     quiet = is_quiet_mode()
-    chain_key = get_cli_flag("chain", default="ethereum")
+    chain_key = get_cli_flag("chain")
     custom_hashes = get_cli_tx_hashes()
+
+    # See the equivalent block in agent_aave_v3_supply.py: a tx hash doesn't
+    # say which chain it is from, so find out rather than failing on the
+    # default. An explicit --chain= always wins.
+    if chain_key is None and custom_hashes:
+        chain_key = detect_chain_for_tx(custom_hashes[0])
+        if chain_key is None:
+            print(f"Transaction {custom_hashes[0]} was not found on any configured "
+                  f"chain ({', '.join(CHAINS)}).")
+            print("Check the hash, or add the chain to CHAINS in shared/common.py.")
+            raise SystemExit(1)
+        if not quiet:
+            print(f"(auto-detected chain: {chain_key} -- pass --chain= to override)")
+    if chain_key is None:
+        chain_key = "ethereum"
+
     test_agent = build_agent(chain_key=chain_key, apply_safe_filter=False)
 
     if custom_hashes:

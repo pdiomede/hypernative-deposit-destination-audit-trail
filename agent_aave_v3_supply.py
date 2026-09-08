@@ -59,8 +59,8 @@ from shared.common import (AAVE_ARG_AMOUNT, AAVE_ARG_ONBEHALFOF, AAVE_ARG_RESERV
                            AAVE_ARG_USER, AAVE_EVENT, AAVE_TX_USDC_SMALL,
                            AAVE_TX_USDT_SIMPLE, AAVE_TX_USER_NE_ONBEHALF,
                            CHAINS, SAFE_LIST_UUID, NOTIFICATION_CHANNEL_IDS,
-                           SEVERITY, get_cli_flag, get_cli_tx_hashes,
-                           is_quiet_mode, print_findings)
+                           SEVERITY, detect_chain_for_tx, get_cli_flag,
+                           get_cli_tx_hashes, is_quiet_mode, print_findings)
 
 AGENT_NAME = "Aave v3 deposit destination (audit trail)"
 
@@ -459,8 +459,26 @@ if __name__ == "__main__":
     # --quiet / -q : print only the ALERT lines, no debug variable dump.
     # Demo-friendly for screen-sharing with a customer.
     quiet = is_quiet_mode()
-    chain_key = get_cli_flag("chain", default="ethereum")
+    chain_key = get_cli_flag("chain")
     custom_hashes = get_cli_tx_hashes()
+
+    # A tx hash says nothing about which chain it belongs to, so when --chain=
+    # wasn't given, go and find out rather than failing on the default with a
+    # raw TransactionNotFound from inside the SDK. An explicit --chain= always
+    # wins. Detected from the first hash: replaying hashes from two different
+    # chains in one command isn't supported (pass them separately).
+    if chain_key is None and custom_hashes:
+        chain_key = detect_chain_for_tx(custom_hashes[0])
+        if chain_key is None:
+            print(f"Transaction {custom_hashes[0]} was not found on any configured "
+                  f"chain ({', '.join(CHAINS)}).")
+            print("Check the hash, or add the chain to CHAINS in shared/common.py.")
+            raise SystemExit(1)
+        if not quiet:
+            print(f"(auto-detected chain: {chain_key} -- pass --chain= to override)")
+    if chain_key is None:
+        chain_key = "ethereum"
+
     test_agent = build_agent(chain_key=chain_key, apply_safe_filter=False)
 
     if custom_hashes:

@@ -43,9 +43,12 @@ python3 agent_morpho_blue_supply.py 0xYourTxHash --quiet
 python3 agent_morpho_vault_deposit.py 0xYourTxHash --vault=0xVaultAddress --quiet
 ```
 
-Options: `--chain=base` (Aave v3 and Morpho Blue; default is `ethereum`) ·
-`--vault=` is required for the vault script · drop `--quiet` for the full
-breakdown · pass several hashes at once to replay a batch.
+**You don't need to know which chain the transaction is on** — the script
+checks Ethereum and Base and runs on whichever one has it, telling you which
+it picked. Pass `--chain=base` to force one.
+
+Other options: `--vault=` is required for the vault script · drop `--quiet`
+for the full breakdown · pass several hashes at once to replay a batch.
 
 **Run it with no arguments** and it replays built-in real mainnet
 transactions instead — a quick way to see all the output shapes without
@@ -185,8 +188,10 @@ then confirmed by replaying real transactions.
 **Known gaps:**
 - No fixture has a monitored Safe as the receiver — correct by construction,
   but untested against a real one. Replay one of your own deposits to close it.
-- Base is untested by replay. Both Base addresses were verified on Basescan
-  (Exact Match), but no Base transaction has been run through an agent yet.
+- Base is proven for **Aave v3** — a real Base deposit
+  (`0x38eee4c5...dcdc162af`) was replayed end to end, with the agent resolving
+  the Base Pool, Base USDC and `aBasUSDC` correctly. **Morpho Blue on Base**
+  is still address-verified only (Basescan Exact Match), never replayed.
 - Morpho Blue has the *same* contract address on Ethereum and Base (CREATE2),
   so its alert text can't tell you which chain fired — the agent name and rule
   file per chain do. Aave v3 isn't affected; its Pool address differs per chain.

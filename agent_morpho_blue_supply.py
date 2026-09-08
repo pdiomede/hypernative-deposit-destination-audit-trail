@@ -452,6 +452,17 @@ if __name__ == "__main__":
     chain_key = get_cli_flag("chain")
     custom_hashes = get_cli_tx_hashes()
 
+    # An unconfigured --chain= otherwise reaches CHAINS[chain_key] inside
+    # build_agent() and surfaces as a bare KeyError traceback.
+    if chain_key is not None:
+        chain_key = chain_key.strip().lower()
+        if chain_key not in CHAINS:
+            print(f"Unknown --chain={chain_key}. Configured chains: "
+                  f"{', '.join(CHAINS)}.")
+            print("Add another chain by giving it an entry in CHAINS "
+                  "(shared/common.py).")
+            raise SystemExit(1)
+
     # See the equivalent block in agent_aave_v3_supply.py: a tx hash doesn't
     # say which chain it is from, so find out rather than failing on the
     # default. An explicit --chain= always wins.
@@ -468,6 +479,20 @@ if __name__ == "__main__":
             print(f"(auto-detected chain: {chain_key} -- pass --chain= to override)")
     if chain_key is None:
         chain_key = "ethereum"
+
+    # The fixtures are Ethereum transactions. Replaying them on another chain
+    # is not a smaller result, it is a raw TransactionNotFound from inside the
+    # SDK -- the hash simply doesn't exist there. Morpho Blue makes this
+    # especially easy to trip over: the contract has the SAME address on
+    # Ethereum and Base (CREATE2), so --chain=base builds a perfectly valid
+    # agent and only the replay fails.
+    if not custom_hashes and chain_key != "ethereum":
+        print(f"The built-in fixtures are Ethereum transactions and cannot be "
+              f"replayed on {chain_key}.")
+        print(f"Pass a real {chain_key} deposit hash instead:")
+        print(f"    python3 agent_morpho_blue_supply.py 0xTxHashOn{chain_key.capitalize()}")
+        print("(the chain is auto-detected from the hash, so --chain= is optional)")
+        raise SystemExit(1)
 
     progress_note("building agent...")
     test_agent = build_agent(chain_key=chain_key, apply_safe_filter=False)

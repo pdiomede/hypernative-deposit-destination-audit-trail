@@ -15,6 +15,26 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Morpho Blue agent (Aave v3 on Base
   is done, see 0.0.13); no Morpho Blue Base fixture exists yet.
 
+## [0.0.21] - 2026-09-08
+
+### Fixed
+
+- The two CLI guards added to `agent_aave_v3_supply.py` in 0.0.20 now also
+  cover `agent_morpho_blue_supply.py`, which had both bugs: an unconfigured
+  `--chain=` became a bare `KeyError`, and `--chain=base` with no tx hash
+  replayed the Ethereum-only fixtures into a raw `TransactionNotFound`.
+  Morpho Blue makes the second especially easy to trip over -- the contract
+  has the same address on both chains (CREATE2), so the agent builds fine
+  and only the replay fails.
+- `--chain=` values are lowercased there too, so `--chain=Base` works.
+
+### Notes
+
+- `agent_morpho_vault_deposit.py` needs neither guard: it takes no `--chain=`
+  flag and is Ethereum-only by construction.
+- Rule JSON exports are untouched by this change -- only the `__main__`
+  block moved, not the sandboxed formatter whose source ships in the rule.
+
 ## [0.0.20] - 2026-09-08
 
 Bug sweep of `discover_positions.py` and `agent_aave_v3_supply.py`. Five

@@ -77,11 +77,33 @@ Safe 0xc540D6E077A3E70CC20B0E15AC50c8aFBE8fAe68
 
   Aave v3:
     total collateral ~ $5.00 | total debt ~ $0.00
-    HOLDS  aEthUSDC                 5.000004   (reserve 0xA0b8...eB48)
+    HOLDS  aBasUSDC                 4.999999   (reserve 0x8335...2913)
+      Pool toxicity -- Default PT Policy   [Aave V3]
+        Policy Recommendation:      Deny
+        Policy Aggregated Toxicity: 0.13%
+        Flags triggered (4 of 15):
+          Sanctions (OF1010)                                     < 0.01%  Medium
+          Related to Sanctions (RF1010)                            0.02%  Medium
+          Sanctioned Jurisdiction Exchange (OF1711)              < 0.01%  Medium
+          Related to Sanctioned Jurisdiction Exchange (RF1711)   < 0.01%  Medium
 ```
 
 It sweeps **Ethereum and Base**, checking every current Aave v3 reserve plus
 the known Morpho vaults. Pass several addresses to check them all at once.
+
+**Pool toxicity** (the indented block above) is optional and only runs if you
+put Hypernative API credentials in `config.env` — it screens *who else* is in
+each pool you're exposed to, reporting how much of that liquidity traces back
+to sanctioned, mixer-linked or hack-proceeds funds. The layout mirrors the
+Flags Inspection panel in the Hypernative web app, so the numbers line up
+with what you'd see there. Add `--no-toxicity` to skip it.
+
+Read the **recommendation**, not the headline percentage — they routinely
+disagree. Above, 0.13% looks harmless, but the verdict is `Deny` because
+individual sanctions flags each blew past their own far lower thresholds.
+Each flag carries its own threshold, so flag percentages aren't comparable
+to each other either: a 0.055% flag can be clean while a 0.006% one is
+Medium. Only flags that actually triggered are listed; the rest are counted.
 
 > If you see `NOTE: 8/67 reserve(s) could not be checked (RPC error or rate
 > limit)`, just run it again — that's a transient public-RPC limit, not a
@@ -93,14 +115,16 @@ the known Morpho vaults. Pass several addresses to check them all at once.
 ## What you need
 
 - Python 3, plus `web3` and the Hypernative Agents SDK (`invariantive`).
-- `discover_positions.py` needs **nothing else** — no Hypernative account, no
-  API key. It reads public RPCs directly.
+- `discover_positions.py` needs **nothing else** for the position sweep — no
+  Hypernative account, no API key. It reads public RPCs directly.
 - The three `agent_*.py` scripts need the Hypernative SDK installed and
   authenticated, since they run the real agent logic.
 
 Optional: `cp config.env.example config.env` and add your Hypernative API
-credentials there (git-ignored). Only needed for direct REST API calls —
-the scripts above don't read it.
+credentials (git-ignored). That switches on the pool toxicity screening in
+`discover_positions.py`; without it, that step is skipped and everything else
+works exactly the same. You also need at least one Pool Toxicity policy in
+your account (Screener > Policies) — the API requires one and has no default.
 
 ---
 

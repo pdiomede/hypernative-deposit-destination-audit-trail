@@ -15,6 +15,74 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Morpho Blue agent (Aave v3 on Base
   is done, see 0.0.13); no Morpho Blue Base fixture exists yet.
 
+## [0.0.15] - 2026-09-08
+
+Reformatted the pool toxicity output to mirror the "Flags Inspection" panel
+in the Hypernative web app, and narrowed it to a single policy.
+
+### Changed
+
+- Output now shows **Policy Recommendation** and **Policy Aggregated
+  Toxicity** as labelled fields, followed by the triggered flags with their
+  flag IDs (`Sanctions (OF1010)`) -- `flagId` was already in the response
+  and simply wasn't being displayed.
+- Percentages follow the UI's convention via `format_toxicity_percentage()`:
+  under 0.01 renders as `< 0.01%`, otherwise two decimals. Deliberately not
+  plain rounding -- 0.0058 rounds *up* to 0.01%, but the UI (and now this)
+  shows `< 0.01%`, which avoids implying precision the figure lacks.
+- Screens against one policy instead of every policy on the account: the one
+  named "Default PT Policy" if present, else the first returned.
+  `POOL_TOXICITY_POLICY_IDS` still overrides and still accepts several.
+- Clean pools collapse to one line (`Flags triggered: none (15 flags
+  clean)`) rather than listing 15 mostly-zero flags per position.
+
+### Notes
+
+- Verified field-for-field against the web UI for the same pool: aggregated
+  `0.13%`, `OF1010` → `< 0.01%`, `RF1010` → `0.02%`.
+- Flag percentages are not comparable to each other -- each flag carries its
+  own threshold. Live data has `Related to Mixing Services` clean at 0.055%
+  while `Sanctions` is Medium at 0.006%. Triggered flags continue to be
+  taken from the server's per-flag severity, never re-derived locally.
+- Failure handling unchanged: a failed screen still prints "could not check"
+  and can never be mistaken for a clean pool.
+
+## [0.0.14] - 2026-09-08
+
+`discover_positions.py` now also screens each position it finds with
+Hypernative's Pool Toxicity API: not just "where is my money", but "who else
+is in that pool with me". Optional and off unless credentials exist.
+
+### Added
+
+- Pool Toxicity screening per position. The `poolId` the API expects turned
+  out to be exactly what this script already had -- the **aToken address**
+  for Aave v3, the **vault address** for Morpho Vaults -- both supported on
+  Ethereum and Base, with the protocol detected server-side. No address
+  derivation needed.
+- Policy UUIDs are auto-discovered from the account (`GET /policies`), with
+  `POOL_TOXICITY_POLICY_IDS` in `config.env` to pin specific ones.
+- `--no-toxicity` to skip screening even when credentials exist.
+- First feature to actually read `HYPERNATIVE_CLIENT_ID`/`_SECRET`.
+
+### Notes
+
+- **Stays opt-in.** No credentials (or no policy defined) means one skip
+  line and behaviour identical to before -- the balance sweep still needs no
+  Hypernative account at all.
+- The verdict leads, not the percentage, because they can disagree sharply:
+  on aEthUSDC the pool total was 0.3143% against a policy threshold of 10 --
+  apparently fine -- while the verdict was **Deny/Medium**, because the
+  Sanctions flag (0.0054%) breached its own 0.001% threshold. Triggered
+  flags are named for that reason. Which flags count comes from the server's
+  own per-flag severity rather than re-deriving policy logic locally.
+- A failed check prints "could not check" and never resembles a clean pool
+  (same rule as 0.0.8), and never aborts the balance sweep.
+- Verified live against real positions on both chains, plus the failure
+  paths: bad policy UUID (HTTP 400), unsupported pool (HTTP 422), no
+  credentials, and `--no-toxicity`. Also confirmed `GET /policies` accepts
+  client-id/secret -- the docs show only a Bearer token there.
+
 ## [0.0.13] - 2026-09-08
 
 Auto-detect which chain a tx hash belongs to, and space out the grouped

@@ -41,7 +41,6 @@ USAGE
     3. Copy the vaults it reports into MORPHO_VAULTS_IN_SCOPE in shared/common.py.
 """
 
-import os
 import sys
 import time
 
@@ -135,10 +134,10 @@ def check_morpho_vaults(w3, safe, chain_key=None, toxicity=None):
                 # decimals, assets use the UNDERLYING ASSET's. Both are read
                 # on-chain rather than taken from MORPHO_VAULT_UNIVERSE, so a
                 # hand-added vault entry with only address/symbol still works.
-                underlying = contract.functions.asset().call()
+                underlying = with_retry(lambda: contract.functions.asset().call())
                 asset_contract = w3.eth.contract(address=underlying, abi=ERC20_ABI)
-                asset_decimals = asset_contract.functions.decimals().call()
-                asset_symbol = asset_contract.functions.symbol().call()
+                asset_decimals = with_retry(lambda: asset_contract.functions.decimals().call())
+                asset_symbol = with_retry(lambda: asset_contract.functions.symbol().call())
 
                 shares_human = shares / (10 ** vault_decimals)
                 assets_human = assets / (10 ** asset_decimals)
@@ -174,11 +173,18 @@ def check_aave(w3, safe, pool_address, chain_key=None, toxicity=None):
         # Base-currency values are 8-decimal in Aave v3.
         collateral_base = data[0] / 1e8
         debt_base = data[1] / 1e8
-        if collateral_base == 0 and debt_base == 0:
-            print("    (no Aave v3 position)")
-            return []
         print(f"    total collateral ~ ${collateral_base:,.2f} | "
               f"total debt ~ ${debt_base:,.2f}")
+        if collateral_base == 0 and debt_base == 0:
+            # NOT the same as "holds nothing", so the reserve sweep below still
+            # runs. totalCollateralBase only counts reserves the user has
+            # enabled as collateral; supply an asset and toggle collateral off
+            # (or supply one whose LTV is 0) and this total reads $0.00 while
+            # the aTokens sit in the Safe. Returning here would report that
+            # Safe as having no Aave position at all.
+            print("    (no collateral or debt in that total -- checking every "
+                  "reserve anyway, since supplied assets not enabled as "
+                  "collateral don't count towards it)")
     except Exception as exception:
         print(f"    error reading getUserAccountData: {exception}")
         return []
@@ -246,6 +252,9 @@ def main():
     # Morpho vault balances are only checked on Ethereum -- MORPHO_VAULT_UNIVERSE
     # has no Base entries yet. Aave v3 is checked on every chain in CHAINS.
     in_scope = {}
+    # Whether the Morpho sweep actually ran. An unreachable Ethereum RPC skips
+    # the whole chain, and the summary below must not then report "none held".
+    morpho_checked = False
     for chain_key, chain_config in CHAINS.items():
         # A timeout is REQUIRED here: public RPCs (mainnet.base.org especially)
         # rate-limit (HTTP 429) under the burst of per-reserve calls check_aave
@@ -268,6 +277,7 @@ def main():
             safe = Web3.to_checksum_address(raw_safe)
             print(f"\n{'=' * 78}\nSafe {safe}\n{'=' * 78}")
             if chain_key == "ethereum":
+                morpho_checked = True
                 for vault in check_morpho_vaults(w3, safe, chain_key, toxicity):
                     in_scope[vault["address"]] = vault
             check_aave(w3, safe, chain_config["aave_pool"], chain_key, toxicity)
@@ -279,6 +289,15 @@ def main():
         for vault in in_scope.values():
             print(f'    {{"address": "{vault["address"]}", "symbol": "{vault["symbol"]}"}},')
         print("]")
+    elif not morpho_checked:
+        # The sweep never ran -- Ethereum was unreachable, or CHAINS has no
+        # ethereum entry. Reporting "none held" here would state a result for
+        # a check that never happened.
+        print("Morpho vaults: NOT CHECKED. The vault sweep runs on Ethereum "
+              "only and Ethereum")
+        print("was never reached this run (see the connection error above). "
+              "Nothing here says")
+        print("anything about which vaults these Safes hold.")
     else:
         # Say what was actually checked, not "nothing found". Aave reserves
         # are enumerated live from the Pool, but Morpho vaults come from a

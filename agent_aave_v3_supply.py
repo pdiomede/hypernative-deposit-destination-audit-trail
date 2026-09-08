@@ -8,8 +8,10 @@ emits one plain-English audit line answering "where did the money go".
 Base support: the Pool address differs per chain (unlike Morpho Blue, whose
 address happens to be identical on both -- see agent_morpho_blue_supply.py),
 so the alert text's own Pool address already disambiguates which chain fired.
-Verified via Basescan (Exact Match) but not yet confirmed by replaying a real
-Base transaction -- there is no Base fixture below, only Ethereum ones.
+Confirmed by replaying a real Base deposit end to end
+(0x38eee4c5f3ede9296e84fdd7d6d1b9b95fa33021f93cc2d579ab230dcdc162af): the
+agent resolved the Base Pool, Base USDC and aBasUSDC correctly. The built-in
+fixtures below are still Ethereum-only, so replaying Base needs a hash.
 
 WHAT THE ALERT CONTAINS
     protocol (Aave v3) · destination reserve named by asset, with the Pool
@@ -129,6 +131,14 @@ def build_audit_line(extracted_variables):
 
         # The Safe's human label, maintained as the `note` on the same List that
         # drives this agent's filter. Optional: never let it break the alert.
+        #
+        # KNOWN LIMITATION, Base: the lookup is pinned to chain.ethereum. The
+        # rest of this function is chain-agnostic (pool_address comes from the
+        # event), but the SDK exposes no context output_index for the chain --
+        # only emitting_contract and the tx_* fields -- so there is nothing to
+        # read it from, and a module global would not survive the sandbox. The
+        # effect is bounded: a Base Safe whose List note lives under `base`
+        # gets no label, and the alert is otherwise correct.
         safe_label = ""
         try:
             note = list_client.get_note(safes_list_uuid, safe_address, chain.ethereum)
@@ -468,6 +478,17 @@ if __name__ == "__main__":
     chain_key = get_cli_flag("chain")
     custom_hashes = get_cli_tx_hashes()
 
+    # An unconfigured --chain= otherwise reaches CHAINS[chain_key] inside
+    # build_agent() and surfaces as a bare KeyError traceback.
+    if chain_key is not None:
+        chain_key = chain_key.strip().lower()
+        if chain_key not in CHAINS:
+            print(f"Unknown --chain={chain_key}. Configured chains: "
+                  f"{', '.join(CHAINS)}.")
+            print("Add another chain by giving it an entry in CHAINS "
+                  "(shared/common.py).")
+            raise SystemExit(1)
+
     # A tx hash says nothing about which chain it belongs to, so when --chain=
     # wasn't given, go and find out rather than failing on the default with a
     # raw TransactionNotFound from inside the SDK. An explicit --chain= always
@@ -486,6 +507,17 @@ if __name__ == "__main__":
             print(f"(auto-detected chain: {chain_key} -- pass --chain= to override)")
     if chain_key is None:
         chain_key = "ethereum"
+
+    # The fixtures are Ethereum transactions. Replaying them on another chain
+    # is not a smaller result, it is a raw TransactionNotFound from inside the
+    # SDK -- the hash simply doesn't exist there.
+    if not custom_hashes and chain_key != "ethereum":
+        print(f"The built-in fixtures are Ethereum transactions and cannot be "
+              f"replayed on {chain_key}.")
+        print(f"Pass a real {chain_key} deposit hash instead:")
+        print(f"    python3 agent_aave_v3_supply.py 0xTxHashOn{chain_key.capitalize()}")
+        print("(the chain is auto-detected from the hash, so --chain= is optional)")
+        raise SystemExit(1)
 
     progress_note("building agent...")
     test_agent = build_agent(chain_key=chain_key, apply_safe_filter=False)

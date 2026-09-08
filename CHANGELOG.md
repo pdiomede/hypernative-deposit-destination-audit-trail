@@ -15,6 +15,57 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Morpho Blue agent (Aave v3 on Base
   is done, see 0.0.13); no Morpho Blue Base fixture exists yet.
 
+## [0.0.20] - 2026-09-08
+
+Bug sweep of `discover_positions.py` and `agent_aave_v3_supply.py`. Five
+fixes; two of them were false negatives, the failure mode this tool exists
+to avoid.
+
+### Fixed
+
+- **A Safe's whole Aave position could be reported as absent.**
+  `check_aave()` returned early when `getUserAccountData` showed zero
+  collateral and zero debt, printing "(no Aave v3 position)" without ever
+  looking at a single reserve. But `totalCollateralBase` only counts
+  reserves the user has *enabled as collateral* -- supply an asset and
+  toggle collateral off (or supply one whose LTV is 0) and the total reads
+  $0.00 while the aTokens sit in the Safe. Observed live while testing: an
+  address whose Base total read **$0.21** was holding **9.08 aBasUSDC**.
+  The per-reserve sweep now always runs; the zero case says what the total
+  does and doesn't cover instead of ending the check.
+- **"No Morpho vaults held" was printed for a check that never ran.** If
+  Ethereum was unreachable the chain was skipped, and since the vault sweep
+  is Ethereum-only the summary still asserted "none held, of the 8 known
+  vaults checked". It now reports `NOT CHECKED` and says why. Verified by
+  pointing `ETHEREUM_RPC_URL` at a dead port.
+- Three reads in `check_morpho_vaults()` (`asset()`, and the underlying's
+  `decimals()`/`symbol()`) bypassed `with_retry()`, unlike every read around
+  them. One transient 429 there dropped a vault the Safe *does* hold out of
+  the `MORPHO_VAULTS_IN_SCOPE` block -- after its balance had already come
+  back nonzero.
+- `--chain=` with an unconfigured chain reached `CHAINS[chain_key]` and
+  surfaced as a bare `KeyError` traceback. It now names the configured
+  chains. Values are also lowercased, so `--chain=Base` works.
+- `--chain=base` with no tx hash replayed the Ethereum-only fixtures against
+  Base, where those hashes do not exist -- a raw `TransactionNotFound` from
+  inside the SDK. It now explains that the fixtures are Ethereum
+  transactions and asks for a Base hash.
+
+### Notes
+
+- Cost of the first fix: a Safe with genuinely no Aave position now sweeps
+  every reserve (67 on Ethereum) instead of stopping after one call. Slower,
+  and correct; the retry path and a configured RPC keep it tolerable.
+- Found but deliberately **not** fixed: the Safe-label lookup in
+  `build_audit_line()` is pinned to `chain.ethereum` while the same
+  formatter serves the Base agent. The SDK exposes no context
+  `output_index` for the chain (only `emitting_contract` and the `tx_*`
+  fields) and a module global would not survive the sandbox, so there is
+  nothing correct to read it from. Recorded as a known limitation in the
+  code; the effect is a missing optional label on Base, nothing more.
+- `agent_morpho_blue_supply.py` takes the same `--chain=` flag and has both
+  CLI bugs above. Left alone -- this sweep was scoped to two files.
+
 ## [0.0.19] - 2026-09-08
 
 Risk scores are now readable, and the agents screen the pool a deposit

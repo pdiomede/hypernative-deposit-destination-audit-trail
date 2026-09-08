@@ -262,6 +262,32 @@ def is_quiet_mode():
     return "--quiet" in sys.argv or "-q" in sys.argv
 
 
+def get_cli_tx_hashes():
+    """Tx hashes passed on the command line, e.g. `python3 agent_*.py 0x...`.
+
+    Any bare argument that looks like a tx hash (starts with "0x", 66 chars
+    long) counts -- this can't collide with `--quiet`/`-q`/`--chain=...`/
+    `--vault=...`, none of which match that shape. Empty list means "use the
+    built-in fixtures" (every agent's __main__ falls back to those).
+    """
+    import sys
+    return [arg for arg in sys.argv[1:] if arg.startswith("0x") and len(arg) == 66]
+
+
+def get_cli_flag(name, default=None):
+    """Value passed as `--name=value` on the command line, or `default`.
+
+    Used for `--chain=base` (Aave v3 / Morpho Blue) and `--vault=0x...`
+    (Morpho Vault, which needs a concrete vault address to replay against).
+    """
+    import sys
+    prefix = f"--{name}="
+    for arg in sys.argv[1:]:
+        if arg.startswith(prefix):
+            return arg[len(prefix):]
+    return default
+
+
 # --------------------------------------------------------------------------
 # Terminal presentation for --quiet. Local display only.
 #
@@ -437,6 +463,9 @@ VARIABLE_SECTIONS = {
     "loan_token": ("What was deposited", "Asset contract"),
     "underlying": ("What was deposited", "Asset contract"),
     "shares_minted": ("What was deposited", "Shares minted by this deposit"),
+    "reserve_risk_score": ("What was deposited", "Asset risk score (Hypernative; lower = safer)"),
+    "loan_token_risk_score": ("What was deposited", "Asset risk score (Hypernative; lower = safer)"),
+    "underlying_risk_score": ("What was deposited", "Asset risk score (Hypernative; lower = safer)"),
 
     # Where it landed -- protocol-specific receipt token / position
     "pool_address": ("Where it landed", "Pool contract"),
@@ -457,6 +486,11 @@ VARIABLE_SECTIONS = {
     "supply_shares_after": ("Where it landed", "Safe's new supply shares"),
     "total_supply_assets": ("Where it landed", "Market total supplied assets"),
     "total_supply_shares": ("Where it landed", "Market total supply shares"),
+    "atoken_risk_score": ("Where it landed", "aToken risk score (Hypernative; lower = safer)"),
+    "pool_risk_score": ("Where it landed", "Pool risk score (Hypernative; lower = safer)"),
+    "market_contract_risk_score": ("Where it landed", "Morpho Blue contract risk score (Hypernative; lower = safer)"),
+    "collateral_token_risk_score": ("Where it landed", "Collateral risk score (Hypernative; lower = safer)"),
+    "vault_address_risk_score": ("Where it landed", "Vault risk score (Hypernative; lower = safer)"),
 
     # Transaction identity
     "tx_hash": ("Transaction", "Tx hash"),
@@ -491,6 +525,11 @@ def print_variables(variables):
     sections = {}
     for key, value in remaining.items():
         section, label = VARIABLE_SECTIONS.get(key, ("Other", key))
+        # ContractScoreVariable returns -1 when Hypernative has no score for
+        # a contract -- shown as a bare "-1" that reads as a literal (and
+        # confusingly negative) score otherwise.
+        if key.endswith("_risk_score") and value == -1:
+            value = "not available (Hypernative has no score for this contract)"
         sections.setdefault(section, []).append((label, value))
 
     mismatch = formatted.get("initiator_mismatch")

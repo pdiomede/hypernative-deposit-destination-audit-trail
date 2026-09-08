@@ -53,9 +53,9 @@ ABI RESOLUTION
     ABI at the vault address and ignore the proxy hint.
 """
 
-from invariantive.model import (Agent, AlertConfig, ContextVariable, EventTrigger,
-                                GenericContractReadVariable, PythonProcessingVariable,
-                                RunConfig, TokenBalanceVariable)
+from invariantive.model import (Agent, AlertConfig, ContextVariable, ContractScoreVariable,
+                                EventTrigger, GenericContractReadVariable,
+                                PythonProcessingVariable, RunConfig, TokenBalanceVariable)
 from invariantive.model.trigger import Condition
 
 # NOTE: NOTIFICATION_CHANNEL_IDS and SEVERITY read as unused to a linter.
@@ -65,8 +65,8 @@ from shared.common import (CHAIN, SAFE_LIST_UUID, MORPHO_VAULTS_IN_SCOPE,
                            NOTIFICATION_CHANNEL_IDS, SEVERITY, VAULT_ARG_ASSETS,
                            VAULT_ARG_OWNER, VAULT_ARG_SENDER, VAULT_ARG_SHARES,
                            VAULT_EVENT, VAULT_TX_SENDER_NE_OWNER, VAULT_TX_USDT_SIMPLE,
-                           VAULT_TX_V2, VAULT_TX_WETH_OFFSET0, is_quiet_mode,
-                           print_findings)
+                           VAULT_TX_V2, VAULT_TX_WETH_OFFSET0, get_cli_flag,
+                           get_cli_tx_hashes, is_quiet_mode, print_findings)
 
 
 def build_audit_line(extracted_variables):
@@ -312,6 +312,23 @@ def build_agent(vault_address, apply_safe_filter=True):
         )
     )
 
+    # Risk scores -- LOCAL DEMO ONLY, gated on the test shape so the deployed
+    # agent and exported rule JSON stay free of them. See the equivalent block
+    # in agent_aave_v3_supply.py for the full reasoning.
+    if not apply_safe_filter:
+        agent.add_variable(
+            ContractScoreVariable(
+                chain=CHAIN, contract_address="extracted_variables.underlying",
+                var_name="underlying_risk_score",
+            )
+        )
+        agent.add_variable(
+            ContractScoreVariable(
+                chain=CHAIN, contract_address=vault_address,
+                var_name="vault_address_risk_score",
+            )
+        )
+
     agent.add_variable(
         PythonProcessingVariable(source_code=build_audit_line, var_name="formatted")
     )
@@ -372,23 +389,39 @@ if not MORPHO_VAULTS_IN_SCOPE and not is_quiet_mode():
 
 
 if __name__ == "__main__":
-    # Real historical Ethereum mainnet Morpho Vault deposits. Each fixture is
-    # paired with the vault that emitted it. Unfiltered shape, since none of
-    # these owners is a monitored Safe.
+    # Real historical Ethereum mainnet Morpho Vault deposits -- either the
+    # four built-in verification fixtures, or a specific tx hash passed on
+    # the command line together with the vault that emitted it (there's no
+    # single fixed vault address here, unlike the Aave/Morpho Blue agents,
+    # since this agent takes a vault address as a build-time parameter):
+    #   python3 agent_morpho_vault_deposit.py 0xTxHash --vault=0xVaultAddress [--quiet]
+    #
+    # Unfiltered shape, since none of these owners is necessarily a
+    # monitored Safe.
     #
     # --quiet / -q : print only the ALERT lines, no debug variable dump.
     # Demo-friendly for screen-sharing with a customer.
     quiet = is_quiet_mode()
-    fixtures = [
-        ("0xbEef047a543E45807105E51A8BBEFCc5950fcfBa", VAULT_TX_USDT_SIMPLE,
-         "steakUSDT V1: 480,234.499741 USDT, 6dp asset / 18dp shares"),
-        ("0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4", VAULT_TX_WETH_OFFSET0,
-         "steakETH V1: 0.049909 WETH, DECIMALS_OFFSET=0 control"),
-        ("0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB", VAULT_TX_SENDER_NE_OWNER,
-         "steakUSDC V1: 200 USDC via Morpho bundler, sender != owner"),
-        ("0x04422053aDDbc9bB2759b248B574e3FCA76Bc145", VAULT_TX_V2,
-         "kUSDC VAULT V2: 2,042,581.5 USDC, same event shape as V1"),
-    ]
+    custom_hashes = get_cli_tx_hashes()
+    custom_vault = get_cli_flag("vault")
+
+    if custom_hashes:
+        if not custom_vault:
+            print("Pass --vault=0xVaultAddress together with the tx hash, e.g.:")
+            print("  python3 agent_morpho_vault_deposit.py 0xTxHash --vault=0xVaultAddress")
+            raise SystemExit(1)
+        fixtures = [(custom_vault, tx_hash, "custom tx") for tx_hash in custom_hashes]
+    else:
+        fixtures = [
+            ("0xbEef047a543E45807105E51A8BBEFCc5950fcfBa", VAULT_TX_USDT_SIMPLE,
+             "steakUSDT V1: 480,234.499741 USDT, 6dp asset / 18dp shares"),
+            ("0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4", VAULT_TX_WETH_OFFSET0,
+             "steakETH V1: 0.049909 WETH, DECIMALS_OFFSET=0 control"),
+            ("0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB", VAULT_TX_SENDER_NE_OWNER,
+             "steakUSDC V1: 200 USDC via Morpho bundler, sender != owner"),
+            ("0x04422053aDDbc9bB2759b248B574e3FCA76Bc145", VAULT_TX_V2,
+             "kUSDC VAULT V2: 2,042,581.5 USDC, same event shape as V1"),
+        ]
     for vault_address, tx_hash, label in fixtures:
         test_agent = build_agent(vault_address, apply_safe_filter=False)
         result = test_agent.run(RunConfig(chain=CHAIN, hashes=[tx_hash]))

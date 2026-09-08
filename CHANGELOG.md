@@ -15,6 +15,55 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Aave v3 / Morpho Blue agents; no
   Base fixture exists yet (Base addresses verified on Basescan only).
 
+## [0.0.11] - 2026-09-08
+
+Added a Hypernative risk score for every contract involved in a deposit
+(asset, receipt token, pool/market), shown in the grouped CLI output. This
+is a **local demo feature only**: the scores are added to the unfiltered
+test shape, so deployed agents and the exported `rules/*.json` are byte-for-
+byte unchanged and pay no extra per-event cost.
+
+### Added
+
+- `ContractScoreVariable` (from the same `invariantive` SDK we already use)
+  added per contract in all three agents, gated on `apply_safe_filter=False`:
+  `reserve`/`atoken`/`pool_address` (Aave v3),
+  `loan_token`/`collateral_token`/`market_contract` (Morpho Blue),
+  `underlying`/`vault_address` (Morpho Vault).
+- `print_variables()` in `shared/common.py` renders the SDK's `-1` ("not
+  scored yet") sentinel as `not available (...)` instead of a bare `-1`,
+  which would otherwise read as a literal (and confusingly negative) score.
+
+### Notes
+
+- Considered and rejected for this pass: Hypernative's literal "Pool
+  Toxicity API" (screens an AMM liquidity pool's LP composition for
+  sanctions/mixer exposure) — it's built for Uniswap-style pools
+  specifically and needs pre-created Policy IDs plus real
+  `x-client-id`/`x-client-secret` credentials, neither of which fits Aave
+  reserves or Morpho markets. `ContractScoreVariable` needed zero extra
+  setup, verified live.
+- Return shape observed empirically (undocumented scale): a float, small
+  values near 0 for reputable contracts (USDT 0.00047, USDC 0.00000004),
+  `-1` when a contract hasn't been scored (observed on the Aave v3 Pool
+  proxy itself).
+
+## [0.0.10] - 2026-09-08
+
+Added command-line tx-hash replay, for pulling up a specific real deposit
+(e.g. a customer's own) on demand instead of only the built-in fixtures.
+
+### Added
+
+- `python3 agent_*.py 0xTxHash [0xTxHash2 ...]` replays those transactions
+  instead of the built-in fixtures. Works alongside `--quiet`.
+- `--chain=base` on the Aave v3 / Morpho Blue agents (default `ethereum`).
+- `--vault=0xVaultAddress` on the Morpho Vault agent, required together with
+  a tx hash since that agent builds one instance per vault rather than per
+  chain; errors with usage guidance if the hash is given without it.
+- `get_cli_tx_hashes()` / `get_cli_flag()` in `shared/common.py`, shared by
+  all three `__main__` blocks the same way `is_quiet_mode()` already was.
+
 ## [0.0.9] - 2026-09-08
 
 Removed `tools/probe_aave_args.py` (its one job was already done and

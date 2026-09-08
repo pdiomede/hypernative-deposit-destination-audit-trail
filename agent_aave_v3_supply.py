@@ -47,9 +47,9 @@ VERIFIED FACTS THIS FILE DEPENDS ON
       "balance after this deposit" is accurate even when replaying history.
 """
 
-from invariantive.model import (Agent, AlertConfig, ContextVariable, EventTrigger,
-                                GenericContractReadVariable, PythonProcessingVariable,
-                                RunConfig, TokenBalanceVariable)
+from invariantive.model import (Agent, AlertConfig, ContextVariable, ContractScoreVariable,
+                                EventTrigger, GenericContractReadVariable,
+                                PythonProcessingVariable, RunConfig, TokenBalanceVariable)
 from invariantive.model.trigger import Condition
 
 # NOTE: NOTIFICATION_CHANNEL_IDS and SEVERITY read as unused to a linter.
@@ -59,7 +59,8 @@ from shared.common import (AAVE_ARG_AMOUNT, AAVE_ARG_ONBEHALFOF, AAVE_ARG_RESERV
                            AAVE_ARG_USER, AAVE_EVENT, AAVE_TX_USDC_SMALL,
                            AAVE_TX_USDT_SIMPLE, AAVE_TX_USER_NE_ONBEHALF,
                            CHAINS, SAFE_LIST_UUID, NOTIFICATION_CHANNEL_IDS,
-                           SEVERITY, is_quiet_mode, print_findings)
+                           SEVERITY, get_cli_flag, get_cli_tx_hashes,
+                           is_quiet_mode, print_findings)
 
 AGENT_NAME = "Aave v3 deposit destination (audit trail)"
 
@@ -345,6 +346,35 @@ def build_agent(chain_key="ethereum", apply_safe_filter=True):
     )
 
     # ----------------------------------------------------------------------
+    # 6b. RISK SCORES -- LOCAL DEMO ONLY, deliberately not deployed.
+    #     Hypernative's per-contract reputation score, shown in the grouped
+    #     CLI output. Gated on the test shape so the deployed agent and the
+    #     exported rule JSON stay free of them: they cost extra calls per
+    #     event in production and the alert text never references them.
+    #     -1 means "not scored yet" -- see print_variables() in
+    #     shared/common.py for how that's rendered.
+    # ----------------------------------------------------------------------
+    if not apply_safe_filter:
+        agent.add_variable(
+            ContractScoreVariable(
+                chain=chain, contract_address="extracted_variables.reserve",
+                var_name="reserve_risk_score",
+            )
+        )
+        agent.add_variable(
+            ContractScoreVariable(
+                chain=chain, contract_address="extracted_variables.atoken",
+                var_name="atoken_risk_score",
+            )
+        )
+        agent.add_variable(
+            ContractScoreVariable(
+                chain=chain, contract_address="extracted_variables.pool_address",
+                var_name="pool_risk_score",
+            )
+        )
+
+    # ----------------------------------------------------------------------
     # 7. FORMAT.
     # ----------------------------------------------------------------------
     agent.add_variable(
@@ -411,24 +441,31 @@ for chain_key in CHAINS:
 
 
 if __name__ == "__main__":
-    # Replay against REAL historical Ethereum mainnet Aave v3 supply txs.
-    # No Base fixture exists yet, so only Ethereum is exercised here -- Base
-    # support is otherwise identical code, just untested by replay so far.
+    # Replay against REAL historical Aave v3 supply txs -- either the
+    # built-in verification fixtures (Ethereum only), or one or more tx
+    # hashes passed on the command line to replay a specific real deposit:
+    #   python3 agent_aave_v3_supply.py 0xTxHash [0xTxHash2 ...] [--chain=base] [--quiet]
     #
-    # The fixtures are not monitored Safes, so we build the UNFILTERED shape
-    # here to exercise the full extraction and formatting path. The production
-    # `agents` above (with the Safe filter) are what save_config/deploy use.
+    # The fixtures/custom hashes are not necessarily monitored Safes, so we
+    # build the UNFILTERED shape here to exercise the full extraction and
+    # formatting path. The production `agents` above (with the Safe filter)
+    # are what save_config/deploy use.
     #
     # --quiet / -q : print only the ALERT lines, no debug variable dump.
     # Demo-friendly for screen-sharing with a customer.
     quiet = is_quiet_mode()
-    test_agent = build_agent(chain_key="ethereum", apply_safe_filter=False)
+    chain_key = get_cli_flag("chain", default="ethereum")
+    custom_hashes = get_cli_tx_hashes()
+    test_agent = build_agent(chain_key=chain_key, apply_safe_filter=False)
 
-    fixtures = [
-        (AAVE_TX_USDT_SIMPLE, "10,000 USDT, user == onBehalfOf"),
-        (AAVE_TX_USER_NE_ONBEHALF, "0.081 WETH via WrappedTokenGateway, user != onBehalfOf"),
-        (AAVE_TX_USDC_SMALL, "10.513985 USDC, user == onBehalfOf"),
-    ]
+    if custom_hashes:
+        fixtures = [(tx_hash, "custom tx") for tx_hash in custom_hashes]
+    else:
+        fixtures = [
+            (AAVE_TX_USDT_SIMPLE, "10,000 USDT, user == onBehalfOf"),
+            (AAVE_TX_USER_NE_ONBEHALF, "0.081 WETH via WrappedTokenGateway, user != onBehalfOf"),
+            (AAVE_TX_USDC_SMALL, "10.513985 USDC, user == onBehalfOf"),
+        ]
     for tx_hash, label in fixtures:
-        result = test_agent.run(RunConfig(chain=CHAINS["ethereum"]["chain"], hashes=[tx_hash]))
-        print_findings(result, f"Aave v3: {label}", quiet=quiet)
+        result = test_agent.run(RunConfig(chain=CHAINS[chain_key]["chain"], hashes=[tx_hash]))
+        print_findings(result, f"Aave v3 ({chain_key}): {label}", quiet=quiet)

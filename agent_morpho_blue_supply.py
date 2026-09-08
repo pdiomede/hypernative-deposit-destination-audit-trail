@@ -76,9 +76,9 @@ VERIFIED FACTS THIS FILE DEPENDS ON
     rather than bending this one.
 """
 
-from invariantive.model import (Agent, AlertConfig, ContextVariable, EventTrigger,
-                                GenericContractReadVariable, PythonProcessingVariable,
-                                RunConfig)
+from invariantive.model import (Agent, AlertConfig, ContextVariable, ContractScoreVariable,
+                                EventTrigger, GenericContractReadVariable,
+                                PythonProcessingVariable, RunConfig)
 from invariantive.model.trigger import Condition
 
 # NOTE: NOTIFICATION_CHANNEL_IDS and SEVERITY read as unused to a linter.
@@ -88,7 +88,8 @@ from shared.common import (CHAINS, SAFE_LIST_UUID, MORPHO_ARG_ASSETS,
                            MORPHO_ARG_CALLER, MORPHO_ARG_MARKET_ID, MORPHO_ARG_ONBEHALF,
                            MORPHO_ARG_SHARES, MORPHO_TX_CALLER_NE_ONBEHALF,
                            MORPHO_TX_USDC_LARGE, MORPHO_TX_WETH_18DP,
-                           NOTIFICATION_CHANNEL_IDS, SEVERITY, is_quiet_mode, print_findings)
+                           NOTIFICATION_CHANNEL_IDS, SEVERITY, get_cli_flag,
+                           get_cli_tx_hashes, is_quiet_mode, print_findings)
 
 AGENT_NAME = "Morpho Blue deposit destination (audit trail)"
 
@@ -354,6 +355,29 @@ def build_agent(chain_key="ethereum", apply_safe_filter=True):
         )
     )
 
+    # Risk scores -- LOCAL DEMO ONLY, gated on the test shape so the deployed
+    # agent and exported rule JSON stay free of them. See the equivalent block
+    # in agent_aave_v3_supply.py for the full reasoning.
+    if not apply_safe_filter:
+        agent.add_variable(
+            ContractScoreVariable(
+                chain=chain, contract_address="extracted_variables.loan_token",
+                var_name="loan_token_risk_score",
+            )
+        )
+        agent.add_variable(
+            ContractScoreVariable(
+                chain=chain, contract_address="extracted_variables.collateral_token",
+                var_name="collateral_token_risk_score",
+            )
+        )
+        agent.add_variable(
+            ContractScoreVariable(
+                chain=chain, contract_address="extracted_variables.market_contract",
+                var_name="market_contract_risk_score",
+            )
+        )
+
     agent.add_variable(
         PythonProcessingVariable(source_code=build_audit_line, var_name="formatted")
     )
@@ -403,22 +427,30 @@ for chain_key in CHAINS:
 
 
 if __name__ == "__main__":
-    # Real historical Ethereum mainnet Morpho Blue supplies. No Base fixture
-    # exists yet, so only Ethereum is exercised here.
+    # Real historical Morpho Blue supplies -- either the built-in
+    # verification fixtures (Ethereum only), or one or more tx hashes passed
+    # on the command line to replay a specific real deposit:
+    #   python3 agent_morpho_blue_supply.py 0xTxHash [0xTxHash2 ...] [--chain=base] [--quiet]
     #
-    # The fixtures are not monitored Safes, so the unfiltered shape is used to
-    # exercise the full path; the production `agents` above keep the Safe filter.
+    # The fixtures/custom hashes are not necessarily monitored Safes, so the
+    # unfiltered shape is used to exercise the full path; the production
+    # `agents` above keep the Safe filter.
     #
     # --quiet / -q : print only the ALERT lines, no debug variable dump.
     # Demo-friendly for screen-sharing with a customer.
     quiet = is_quiet_mode()
-    test_agent = build_agent(chain_key="ethereum", apply_safe_filter=False)
+    chain_key = get_cli_flag("chain", default="ethereum")
+    custom_hashes = get_cli_tx_hashes()
+    test_agent = build_agent(chain_key=chain_key, apply_safe_filter=False)
 
-    fixtures = [
-        (MORPHO_TX_USDC_LARGE, "355,036.521182 USDC, caller == onBehalf"),
-        (MORPHO_TX_WETH_18DP, "0.001 WETH, 18-decimal case"),
-        (MORPHO_TX_CALLER_NE_ONBEHALF, "1,007.278549 USDC via router, caller != onBehalf"),
-    ]
+    if custom_hashes:
+        fixtures = [(tx_hash, "custom tx") for tx_hash in custom_hashes]
+    else:
+        fixtures = [
+            (MORPHO_TX_USDC_LARGE, "355,036.521182 USDC, caller == onBehalf"),
+            (MORPHO_TX_WETH_18DP, "0.001 WETH, 18-decimal case"),
+            (MORPHO_TX_CALLER_NE_ONBEHALF, "1,007.278549 USDC via router, caller != onBehalf"),
+        ]
     for tx_hash, label in fixtures:
-        result = test_agent.run(RunConfig(chain=CHAINS["ethereum"]["chain"], hashes=[tx_hash]))
-        print_findings(result, f"Morpho Blue: {label}", quiet=quiet)
+        result = test_agent.run(RunConfig(chain=CHAINS[chain_key]["chain"], hashes=[tx_hash]))
+        print_findings(result, f"Morpho Blue ({chain_key}): {label}", quiet=quiet)

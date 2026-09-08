@@ -161,9 +161,13 @@ def build_audit_line(extracted_variables):
                 else:
                     initiator_note = f" NOTE: initiated by {sender}, not the holding Safe."
 
+        # Blank line before "Safe now holds" -- see the same note in
+        # agent_aave_v3_supply.py. Part of the real alert text, not just
+        # local display.
         description = (
             f"Deposit: {amount_text} {asset_symbol} from Safe {safe_address}{safe_label} "
-            f"-> {vault_name} vault ({vault} on Morpho). "
+            f"-> {vault_name} vault ({vault} on Morpho)."
+            f"\n\n"
             f"Safe now holds {shares_text} {vault_symbol}{value_clause}. "
             f"Tx {tx_hash} @ block {block_number}.{initiator_note}"
         )

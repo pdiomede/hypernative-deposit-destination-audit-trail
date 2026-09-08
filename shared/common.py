@@ -389,25 +389,40 @@ def format_audit_line(description, width=None, color=None, wrap=None):
     if wrap is None:
         wrap = is_terminal()
 
-    # Redirected: one line per finding, no escape codes.
+    # Redirected: one line per finding, no escape codes. The alert text now
+    # carries a real paragraph break, so it is folded back to a single space
+    # here -- the documented `--quiet | grep` recipe depends on one line per
+    # finding, and that is worth more downstream than reproducing the blank
+    # line in a pipe.
     if not wrap:
-        return description
+        return description.replace("\n\n", " ")
 
     if width is None:
         # Cap the width: full-bleed text on a wide window is harder to read
         # than a comfortable measure, and this is meant for a projector.
         width = min(shutil.get_terminal_size((100, 20)).columns, 100)
 
+    # Wrap each paragraph separately. The audit line contains a real blank
+    # line before "Safe now holds", and textwrap.wrap() would otherwise
+    # silently flatten it: replace_whitespace=True turns \n into a space, so
+    # a single wrap() call over the whole string loses the break entirely.
+    #
     # break_long_words=False keeps a 42-char address or 66-char hash on one
     # line. A split token would also defeat the regex in highlight().
     # break_on_hyphens=False keeps names like PT-reUSD-10DEC2026 intact.
-    lines = textwrap.wrap(
-        description,
-        width=max(width - 2, 40),
-        subsequent_indent="  ",
-        break_long_words=False,
-        break_on_hyphens=False,
-    )
+    lines = []
+    for paragraph in description.split("\n\n"):
+        if lines:
+            lines.append("")
+        lines.extend(
+            textwrap.wrap(
+                paragraph,
+                width=max(width - 2, 40),
+                subsequent_indent="  ",
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+        )
 
     # The NOTE clause is handled across lines rather than per line, because it
     # usually wraps. Matching it with a line-anchored regex would colour only

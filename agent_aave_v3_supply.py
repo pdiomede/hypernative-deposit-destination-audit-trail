@@ -144,9 +144,14 @@ def build_audit_line(extracted_variables):
                 mismatch = True
                 initiator_note = f" NOTE: initiated by {caller_user}, not the holding Safe."
 
+        # The blank line before "Safe now holds" is deliberate: it splits the
+        # alert into "what moved" and "what the Safe holds now", which is the
+        # natural reading break. It is part of the real alert text, so Slack
+        # and email get the same two paragraphs the local view shows.
         description = (
             f"Deposit: {amount_text} {asset_symbol} from Safe {safe_address}{safe_label} "
-            f"-> Aave v3 {asset_symbol} reserve (Pool {pool_address}, aToken {atoken}). "
+            f"-> Aave v3 {asset_symbol} reserve (Pool {pool_address}, aToken {atoken})."
+            f"\n\n"
             f"Safe now holds {balance_text} {atoken_symbol}. "
             f"Tx {tx_hash} @ block {block_number}.{initiator_note}"
         )

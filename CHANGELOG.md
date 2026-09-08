@@ -15,6 +15,23 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Aave v3 / Morpho Blue agents; no
   Base fixture exists yet (Base addresses verified on Basescan only).
 
+## [0.0.12] - 2026-09-08
+
+Split the audit line into two paragraphs: what moved, then what the Safe
+holds now. This changes the real alert text, not just the local view.
+
+### Changed
+
+- `build_audit_line()` in all three agents now puts a blank line before
+  "Safe now holds". Deployed agents send the same two paragraphs, so the
+  local view stays byte-for-byte identical to the alert (the property this
+  repo has deliberately kept). `rules/*.json` regenerated accordingly.
+- `format_audit_line()` wraps each paragraph separately. A single
+  `textwrap.wrap()` call over the whole string would have silently eaten the
+  break -- `replace_whitespace=True` turns `\n` into a space.
+- Piped output folds the break back to a space, so the documented
+  `--quiet | grep` recipe still yields one line per finding.
+
 ## [0.0.11] - 2026-09-08
 
 Added a Hypernative risk score for every contract involved in a deposit

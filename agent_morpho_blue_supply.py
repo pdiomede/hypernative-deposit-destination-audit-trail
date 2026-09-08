@@ -190,11 +190,16 @@ def build_audit_line(extracted_variables):
                 mismatch = True
                 initiator_note = f" NOTE: initiated by {caller}, not the holding Safe."
 
+        # Blank line before "Safe now holds" -- see the same note in
+        # agent_aave_v3_supply.py. Part of the real alert text, not just
+        # local display.
         description = (
             f"Deposit: {amount_text} {loan_symbol} from Safe {safe_address}{safe_label} "
             f"-> Morpho Blue market {market_id} "
             f"({loan_symbol} lent against {collateral_symbol}, LLTV {lltv_text}%) "
-            f"via {morpho_blue}. Safe now holds {position_text}. "
+            f"via {morpho_blue}."
+            f"\n\n"
+            f"Safe now holds {position_text}. "
             f"Tx {tx_hash} @ block {block_number}.{initiator_note}"
         )
 

@@ -26,12 +26,15 @@ python3 agent_aave_v3_supply.py 0x035ce8b125e7133f07e7ec653ce037ed051dfecec8042d
 ```
 Deposit: 5 USDC from Safe 0xc540d6e077a3e70cc20b0e15ac50c8afbe8fae68
   -> Aave v3 USDC reserve (Pool 0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2,
-  aToken 0x98c23e9d8f34fefb1b7bd6a91b7ff122f4e16f5c). Safe now holds
-  4.999998 aEthUSDC. Tx 0x035ce8b1...f1de74a6 @ block 25932163.
+  aToken 0x98c23e9d8f34fefb1b7bd6a91b7ff122f4e16f5c).
+
+Safe now holds 4.999998 aEthUSDC.
+  Tx 0x035ce8b1...f1de74a6 @ block 25932163.
 ```
 
-That one line is the whole point: **who** deposited, **how much**, **which
-protocol and pool**, and **what the Safe holds now** as a result.
+That's the whole point, in two parts: **what moved** (who deposited, how
+much, into which protocol and pool), then **what the Safe holds now** as a
+result. It's the exact text a real alert carries.
 
 Same idea for the other two protocols:
 
@@ -123,8 +126,10 @@ compute them and don't pay for the extra calls.
 With `--quiet`, you get only the audit lines: wrapped, colourised, one blank
 line apart. This is the exact text a real alert carries, so it's safe to
 screen-share. Colour and wrapping turn off automatically when piped, so
-`--quiet | grep` still gives one line per finding (`NO_COLOR=1` keeps the
-wrapping but drops the colour).
+`--quiet | grep` still gives one line per finding — the alert's own
+paragraph break is folded back to a space in that case, so each finding
+stays greppable on one line (`NO_COLOR=1` keeps the wrapping but drops the
+colour).
 
 ---
 

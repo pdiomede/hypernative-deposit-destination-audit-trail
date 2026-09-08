@@ -1,0 +1,353 @@
+{
+    "chain": "ethereum",
+    "triggerType": "ged",
+    "severity": "medium",
+    "contractAddress": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+    "involvedAssets": {
+        "extracted_variables.safe_address": "Monitored Safe",
+        "extracted_variables.loan_token": "Asset deposited",
+        "extracted_variables.collateral_token": "Market collateral"
+    },
+    "secrets": {},
+    "input": [],
+    "inputDataType": [],
+    "outputDataType": [
+        "bytes32",
+        "address",
+        "address",
+        "uint256",
+        "uint256"
+    ],
+    "idlJson": {},
+    "abi": {},
+    "contractFunctionObject": {},
+    "outputIndex": "emitting_contract",
+    "funcSig": "Supply(indexed bytes32 id, indexed address caller, indexed address onBehalf, uint256 assets, uint256 shares)",
+    "time_based_trigger": {},
+    "typeIds": [],
+    "fileName": "some_file_name.json",
+    "operands": [
+        "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
+    ],
+    "operator": "compare_exact",
+    "data_retention_required": false,
+    "conditions": [
+        {
+            "output_index": "emitting_contract",
+            "operator": "compare_exact",
+            "operands": [
+                "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
+            ]
+        },
+        {
+            "output_index": "emitted_arg_2",
+            "operator": "in_lists",
+            "operands": [
+                "SAFE_LIST_UUID"
+            ]
+        },
+        {
+            "operator": "formula",
+            "output_index": "",
+            "operands": [
+                {
+                    "variable_extraction": [
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_0",
+                            "var_name": "market_id"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_1",
+                            "var_name": "caller"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_2",
+                            "var_name": "safe_address"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_3",
+                            "var_name": "assets_raw"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_4",
+                            "var_name": "shares_minted"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "tx_hash",
+                            "var_name": "tx_hash"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "block_number",
+                            "var_name": "block_number"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "block_timestamp",
+                            "var_name": "block_timestamp"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "tx_from",
+                            "var_name": "executed_by"
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "0xbbbbbbbbbb9cc5e90e3b3af64bdaf62c37eeffcb",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [
+                                "extracted_variables.market_id"
+                            ],
+                            "input_data_type": [
+                                "bytes32"
+                            ],
+                            "output_data_type": [
+                                "address",
+                                "address",
+                                "address",
+                                "address",
+                                "uint256"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "idToMarketParams(bytes32)",
+                            "chain": "ethereum",
+                            "var_name": "loan_token",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "0xbbbbbbbbbb9cc5e90e3b3af64bdaf62c37eeffcb",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [
+                                "extracted_variables.market_id"
+                            ],
+                            "input_data_type": [
+                                "bytes32"
+                            ],
+                            "output_data_type": [
+                                "address",
+                                "address",
+                                "address",
+                                "address",
+                                "uint256"
+                            ],
+                            "output_index": "output_arg_1",
+                            "func_sig": "idToMarketParams(bytes32)",
+                            "chain": "ethereum",
+                            "var_name": "collateral_token",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "0xbbbbbbbbbb9cc5e90e3b3af64bdaf62c37eeffcb",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [
+                                "extracted_variables.market_id"
+                            ],
+                            "input_data_type": [
+                                "bytes32"
+                            ],
+                            "output_data_type": [
+                                "address",
+                                "address",
+                                "address",
+                                "address",
+                                "uint256"
+                            ],
+                            "output_index": "output_arg_4",
+                            "func_sig": "idToMarketParams(bytes32)",
+                            "chain": "ethereum",
+                            "var_name": "lltv",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "extracted_variables.loan_token",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [],
+                            "input_data_type": [],
+                            "output_data_type": [
+                                "uint8"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "decimals()",
+                            "chain": "ethereum",
+                            "var_name": "loan_decimals",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "extracted_variables.loan_token",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [],
+                            "input_data_type": [],
+                            "output_data_type": [
+                                "string"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "symbol()",
+                            "chain": "ethereum",
+                            "var_name": "loan_symbol",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "extracted_variables.collateral_token",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [],
+                            "input_data_type": [],
+                            "output_data_type": [
+                                "string"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "symbol()",
+                            "chain": "ethereum",
+                            "var_name": "collateral_symbol",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "0xbbbbbbbbbb9cc5e90e3b3af64bdaf62c37eeffcb",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [
+                                "extracted_variables.market_id",
+                                "extracted_variables.safe_address"
+                            ],
+                            "input_data_type": [
+                                "bytes32",
+                                "address"
+                            ],
+                            "output_data_type": [
+                                "uint256",
+                                "uint128",
+                                "uint128"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "position(bytes32, address)",
+                            "chain": "ethereum",
+                            "var_name": "supply_shares_after",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "0xbbbbbbbbbb9cc5e90e3b3af64bdaf62c37eeffcb",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [
+                                "extracted_variables.market_id"
+                            ],
+                            "input_data_type": [
+                                "bytes32"
+                            ],
+                            "output_data_type": [
+                                "uint128",
+                                "uint128",
+                                "uint128",
+                                "uint128",
+                                "uint128",
+                                "uint128"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "market(bytes32)",
+                            "chain": "ethereum",
+                            "var_name": "total_supply_assets",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "0xbbbbbbbbbb9cc5e90e3b3af64bdaf62c37eeffcb",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [
+                                "extracted_variables.market_id"
+                            ],
+                            "input_data_type": [
+                                "bytes32"
+                            ],
+                            "output_data_type": [
+                                "uint128",
+                                "uint128",
+                                "uint128",
+                                "uint128",
+                                "uint128",
+                                "uint128"
+                            ],
+                            "output_index": "output_arg_1",
+                            "func_sig": "market(bytes32)",
+                            "chain": "ethereum",
+                            "var_name": "total_supply_shares",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "python_processing",
+                            "source_code": "ZGVmIGJ1aWxkX2F1ZGl0X2xpbmUoZXh0cmFjdGVkX3ZhcmlhYmxlcyk6CiAgICAiIiJDb21wb3NlIHRoZSBhdWRpdCBsaW5lIGZvciBvbmUgTW9ycGhvIEJsdWUgc3VwcGx5LgoKICAgIFNBTkRCT1ggUlVMRVMgT0JTRVJWRUQ6IGNvbnN0YW50cyBpbnNpZGUgdGhlIGZ1bmN0aW9uIChubyBtb2R1bGUgZ2xvYmFscyksCiAgICBpbXBvcnRzIGluc2lkZSB0aGUgZnVuY3Rpb24sIG5vIGArPWAsIG5vIHR1cGxlIHVucGFja2luZywgbm8gaW5saW5lCiAgICB0ZXJuYXJ5LCBubyBsZWFkaW5nLXVuZGVyc2NvcmUgbmFtZXMsIGYtc3RyaW5ncyBvbmx5LgogICAgIiIiCiAgICB0cnk6CiAgICAgICAgbW9ycGhvX2JsdWUgPSAiMHhCQkJCQmJiQkJiOWNDNWU5MGUzYjNBZjY0YmRBRjYyQzM3RUVGRkNiIgogICAgICAgIHNhZmVzX2xpc3RfdXVpZCA9ICJTQUZFX0xJU1RfVVVJRCIKICAgICAgICAjIE1vcnBobyBTaGFyZXNNYXRoTGliIGNvbnN0YW50cy4gRGVjbGFyZWQgaGVyZSwgbm90IGltcG9ydGVkLgogICAgICAgIHZpcnR1YWxfc2hhcmVzID0gMTAwMDAwMAogICAgICAgIHZpcnR1YWxfYXNzZXRzID0gMQoKICAgICAgICBtYXJrZXRfaWQgPSBleHRyYWN0ZWRfdmFyaWFibGVzLmdldCgibWFya2V0X2lkIikKICAgICAgICBzYWZlX2FkZHJlc3MgPSBleHRyYWN0ZWRfdmFyaWFibGVzLmdldCgic2FmZV9hZGRyZXNzIikKICAgICAgICBjYWxsZXIgPSBleHRyYWN0ZWRfdmFyaWFibGVzLmdldCgiY2FsbGVyIikKICAgICAgICBhc3NldHNfcmF3ID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImFzc2V0c19yYXciKQogICAgICAgIGxvYW5fc3ltYm9sID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImxvYW5fc3ltYm9sIikKICAgICAgICBsb2FuX2RlY2ltYWxzID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImxvYW5fZGVjaW1hbHMiKQogICAgICAgIGNvbGxhdGVyYWxfc3ltYm9sID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImNvbGxhdGVyYWxfc3ltYm9sIikKICAgICAgICBsbHR2X3JhdyA9IGV4dHJhY3RlZF92YXJpYWJsZXMuZ2V0KCJsbHR2IikKICAgICAgICBzaGFyZXNfYWZ0ZXIgPSBleHRyYWN0ZWRfdmFyaWFibGVzLmdldCgic3VwcGx5X3NoYXJlc19hZnRlciIpCiAgICAgICAgdG90YWxfYXNzZXRzID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoInRvdGFsX3N1cHBseV9hc3NldHMiKQogICAgICAgIHRvdGFsX3NoYXJlcyA9IGV4dHJhY3RlZF92YXJpYWJsZXMuZ2V0KCJ0b3RhbF9zdXBwbHlfc2hhcmVzIikKICAgICAgICB0eF9oYXNoID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoInR4X2hhc2giKQogICAgICAgIGJsb2NrX251bWJlciA9IGV4dHJhY3RlZF92YXJpYWJsZXMuZ2V0KCJibG9ja19udW1iZXIiKQoKICAgICAgICBpZiBsb2FuX2RlY2ltYWxzIGlzIE5vbmU6CiAgICAgICAgICAgIGxvYW5fZGVjaW1hbHMgPSAxOAogICAgICAgIGlmIGxvYW5fc3ltYm9sIGlzIE5vbmU6CiAgICAgICAgICAgIGxvYW5fc3ltYm9sID0gInRva2VuIgogICAgICAgIGlmIGNvbGxhdGVyYWxfc3ltYm9sIGlzIE5vbmU6CiAgICAgICAgICAgIGNvbGxhdGVyYWxfc3ltYm9sID0gIj8iCgogICAgICAgIHNjYWxlID0gZmxvYXQoMTAgKiogaW50KGxvYW5fZGVjaW1hbHMpKQogICAgICAgIGFtb3VudCA9IGZsb2F0KGludChhc3NldHNfcmF3KSkgLyBzY2FsZQogICAgICAgIGFtb3VudF90ZXh0ID0gZiJ7YW1vdW50OiwuNmZ9Ii5yc3RyaXAoIjAiKS5yc3RyaXAoIi4iKQogICAgICAgICMgQSBkZXBvc2l0IHNtYWxsZXIgdGhhbiAwLjAwMDAwMDUgcm91bmRzIHRvICIwIiBhdCA2ZHAuIFJlcG9ydGluZwogICAgICAgICMgIkRlcG9zaXQ6IDAgVVNEQyIgZm9yIGEgcmVhbCB0cmFuc2ZlciBvZiB2YWx1ZSBpcyBhIG1pc3N0YXRlbWVudCBpbiBhbgogICAgICAgICMgYXVkaXQgcmVjb3JkLCBzbyBmYWxsIGJhY2sgdG8gZXhhY3QgYmFzZSB1bml0cyBpbnN0ZWFkLgogICAgICAgIGlmIGFtb3VudF90ZXh0ID09ICIwIiBhbmQgaW50KGFzc2V0c19yYXcpID4gMDoKICAgICAgICAgICAgYW1vdW50X3RleHQgPSBmIntpbnQoYXNzZXRzX3Jhdyl9IGJhc2UgdW5pdHMgb2YiCgogICAgICAgICMgTExUViBpcyBhbiAxOC1kZWNpbWFsIGZyYWN0aW9uLCBlLmcuIDkxNTAwMDAwMDAwMDAwMDAwMCA9IDkxLjUlLgogICAgICAgIGlmIGxsdHZfcmF3IGlzIE5vbmU6CiAgICAgICAgICAgIGxsdHZfdGV4dCA9ICI/IgogICAgICAgIGVsc2U6CiAgICAgICAgICAgIGxsdHZfdGV4dCA9IGYieyhmbG9hdChpbnQobGx0dl9yYXcpKSAvIDFlMTYpOi4xZn0iCgogICAgICAgICMgU2hhcmVzIC0+IGFzc2V0cyB3aXRoIHZpcnR1YWwgc2hhcmVzLiBHdWFyZCBhZ2FpbnN0IGEgemVyby1zaGFyZQogICAgICAgICMgbWFya2V0IChhIGJyYW5kLW5ldyBtYXJrZXQpIHJhdGhlciB0aGFuIGRpdmlkaW5nIGJ5IHplcm8uCiAgICAgICAgcG9zaXRpb25fdGV4dCA9ICJ1bmF2YWlsYWJsZSIKICAgICAgICBpZiBzaGFyZXNfYWZ0ZXIgaXMgbm90IE5vbmU6CiAgICAgICAgICAgIHNoYXJlc19pbnQgPSBpbnQoc2hhcmVzX2FmdGVyKQogICAgICAgICAgICBzaGFyZXNfdGV4dCA9IGYie3NoYXJlc19pbnQ6LH0iCiAgICAgICAgICAgIGlmIHRvdGFsX2Fzc2V0cyBpcyBOb25lIG9yIHRvdGFsX3NoYXJlcyBpcyBOb25lOgogICAgICAgICAgICAgICAgcG9zaXRpb25fdGV4dCA9IGYie3NoYXJlc190ZXh0fSBzdXBwbHkgc2hhcmVzIgogICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgZGVub21pbmF0b3IgPSBpbnQodG90YWxfc2hhcmVzKSArIHZpcnR1YWxfc2hhcmVzCiAgICAgICAgICAgICAgICBpZiBkZW5vbWluYXRvciA+IDA6CiAgICAgICAgICAgICAgICAgICAgbnVtZXJhdG9yID0gc2hhcmVzX2ludCAqIChpbnQodG90YWxfYXNzZXRzKSArIHZpcnR1YWxfYXNzZXRzKQogICAgICAgICAgICAgICAgICAgIHZhbHVlX3VuaXRzID0gbnVtZXJhdG9yIC8vIGRlbm9taW5hdG9yCiAgICAgICAgICAgICAgICAgICAgdmFsdWUgPSBmbG9hdCh2YWx1ZV91bml0cykgLyBzY2FsZQogICAgICAgICAgICAgICAgICAgIHZhbHVlX3RleHQgPSBmInt2YWx1ZTosLjZmfSIucnN0cmlwKCIwIikucnN0cmlwKCIuIikKICAgICAgICAgICAgICAgICAgICAjIFNhbWUgcm91bmRpbmcgdHJhcCBvbiB0aGUgY29udmVydGVkIHZhbHVlLgogICAgICAgICAgICAgICAgICAgIGlmIHZhbHVlX3RleHQgPT0gIjAiIGFuZCB2YWx1ZV91bml0cyA+IDA6CiAgICAgICAgICAgICAgICAgICAgICAgIHZhbHVlX3RleHQgPSBmInt2YWx1ZV91bml0c30gYmFzZSB1bml0cyBvZiIKICAgICAgICAgICAgICAgICAgICBwb3NpdGlvbl90ZXh0ID0gKAogICAgICAgICAgICAgICAgICAgICAgICBmIntzaGFyZXNfdGV4dH0gc3VwcGx5IHNoYXJlcywgd29ydGggYWJvdXQgIgogICAgICAgICAgICAgICAgICAgICAgICBmInt2YWx1ZV90ZXh0fSB7bG9hbl9zeW1ib2x9IGFzIG9mIGxhc3QgYWNjcnVhbCIKICAgICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgICAgIHBvc2l0aW9uX3RleHQgPSBmIntzaGFyZXNfdGV4dH0gc3VwcGx5IHNoYXJlcyIKCiAgICAgICAgc2FmZV9sYWJlbCA9ICIiCiAgICAgICAgdHJ5OgogICAgICAgICAgICBub3RlID0gbGlzdF9jbGllbnQuZ2V0X25vdGUoc2FmZXNfbGlzdF91dWlkLCBzYWZlX2FkZHJlc3MsIGNoYWluLmV0aGVyZXVtKQogICAgICAgICAgICBpZiBub3RlOgogICAgICAgICAgICAgICAgc2FmZV9sYWJlbCA9IGYiICh7bm90ZX0pIgogICAgICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgICAgIHNhZmVfbGFiZWwgPSAiIgoKICAgICAgICBpbml0aWF0b3Jfbm90ZSA9ICIiCiAgICAgICAgbWlzbWF0Y2ggPSBGYWxzZQogICAgICAgIGlmIGNhbGxlciBhbmQgc2FmZV9hZGRyZXNzOgogICAgICAgICAgICBpZiBzdHIoY2FsbGVyKS5sb3dlcigpICE9IHN0cihzYWZlX2FkZHJlc3MpLmxvd2VyKCk6CiAgICAgICAgICAgICAgICBtaXNtYXRjaCA9IFRydWUKICAgICAgICAgICAgICAgIGluaXRpYXRvcl9ub3RlID0gZiIgTk9URTogaW5pdGlhdGVkIGJ5IHtjYWxsZXJ9LCBub3QgdGhlIGhvbGRpbmcgU2FmZS4iCgogICAgICAgIGRlc2NyaXB0aW9uID0gKAogICAgICAgICAgICBmIkRlcG9zaXQ6IHthbW91bnRfdGV4dH0ge2xvYW5fc3ltYm9sfSBmcm9tIFNhZmUge3NhZmVfYWRkcmVzc317c2FmZV9sYWJlbH0gIgogICAgICAgICAgICBmIi0+IE1vcnBobyBCbHVlIG1hcmtldCB7bWFya2V0X2lkfSAiCiAgICAgICAgICAgIGYiKHtsb2FuX3N5bWJvbH0gbGVudCBhZ2FpbnN0IHtjb2xsYXRlcmFsX3N5bWJvbH0sIExMVFYge2xsdHZfdGV4dH0lKSAiCiAgICAgICAgICAgIGYidmlhIHttb3JwaG9fYmx1ZX0uIFNhZmUgbm93IGhvbGRzIHtwb3NpdGlvbl90ZXh0fS4gIgogICAgICAgICAgICBmIlR4IHt0eF9oYXNofSBAIGJsb2NrIHtibG9ja19udW1iZXJ9Lntpbml0aWF0b3Jfbm90ZX0iCiAgICAgICAgKQoKICAgICAgICByZXR1cm4gewogICAgICAgICAgICAiYXVkaXRfbGluZSI6IGRlc2NyaXB0aW9uLAogICAgICAgICAgICAiYW1vdW50IjogYW1vdW50LAogICAgICAgICAgICAiYW1vdW50X3RleHQiOiBhbW91bnRfdGV4dCwKICAgICAgICAgICAgInBvc2l0aW9uX3RleHQiOiBwb3NpdGlvbl90ZXh0LAogICAgICAgICAgICAiaW5pdGlhdG9yX21pc21hdGNoIjogbWlzbWF0Y2gsCiAgICAgICAgfQogICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBleGNlcHRpb246CiAgICAgICAgcmV0dXJuIHsKICAgICAgICAgICAgImF1ZGl0X2xpbmUiOiBmIk1vcnBobyBCbHVlIGRlcG9zaXQgZGV0ZWN0ZWQgYnV0IGZvcm1hdHRpbmcgZmFpbGVkOiB7ZXhjZXB0aW9ufSIsCiAgICAgICAgICAgICJhbW91bnQiOiAwLAogICAgICAgICAgICAiYW1vdW50X3RleHQiOiAiPyIsCiAgICAgICAgICAgICJwb3NpdGlvbl90ZXh0IjogIj8iLAogICAgICAgICAgICAiaW5pdGlhdG9yX21pc21hdGNoIjogRmFsc2UsCiAgICAgICAgfQo=",
+                            "var_name": "formatted",
+                            "entry_point": "build_audit_line"
+                        },
+                        {
+                            "type": "python_processing",
+                            "source_code": "ZGVmIGV4dHJhY3RfYXVkaXRfbGluZShleHRyYWN0ZWRfdmFyaWFibGVzKToKICAgICIiIlN1cmZhY2UgdGhlIGNvbXBvc2VkIGxpbmUgYXMgYSBmbGF0IHZhcmlhYmxlIGZvciB0aGUgYWxlcnQgdGVtcGxhdGUuIiIiCiAgICBmb3JtYXR0ZWQgPSBleHRyYWN0ZWRfdmFyaWFibGVzLmdldCgiZm9ybWF0dGVkIikKICAgIGlmIGZvcm1hdHRlZCBpcyBOb25lOgogICAgICAgIHJldHVybiAiTW9ycGhvIEJsdWUgZGVwb3NpdCBkZXRlY3RlZCAoZm9ybWF0dGVyIHByb2R1Y2VkIG5vIG91dHB1dCkiCiAgICByZXR1cm4gZm9ybWF0dGVkLmdldCgiYXVkaXRfbGluZSIpCg==",
+                            "var_name": "audit_line",
+                            "entry_point": "extract_audit_line"
+                        }
+                    ],
+                    "eval": {
+                        "sym_expression": "audit_line",
+                        "operator": "any",
+                        "operands": [],
+                        "custom_description": "{{formula_extracted_variables_kvmapping.entries.audit_line}}"
+                    }
+                }
+            ]
+        }
+    ],
+    "isReminderEnabled": false,
+    "module": "",
+    "moduleName": "",
+    "typeArguments": [],
+    "genericTypeParams": [],
+    "advanced": [
+        "customDescription"
+    ],
+    "customDescription": "{{formula_extracted_variables_kvmapping.entries.audit_line}}"
+}

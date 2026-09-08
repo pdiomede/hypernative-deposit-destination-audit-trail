@@ -1,0 +1,216 @@
+{
+    "chain": "ethereum",
+    "triggerType": "ged",
+    "severity": "medium",
+    "contractAddress": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+    "involvedAssets": {
+        "extracted_variables.safe_address": "Monitored Safe",
+        "extracted_variables.reserve": "Asset deposited",
+        "extracted_variables.atoken": "Receipt token (aToken)"
+    },
+    "secrets": {},
+    "input": [],
+    "inputDataType": [],
+    "outputDataType": [
+        "address",
+        "address",
+        "address",
+        "uint256",
+        "uint16"
+    ],
+    "idlJson": {},
+    "abi": {},
+    "contractFunctionObject": {},
+    "outputIndex": "emitting_contract",
+    "funcSig": "Supply(indexed address reserve, address user, indexed address onBehalfOf, uint256 amount, indexed uint16 referralCode)",
+    "time_based_trigger": {},
+    "typeIds": [],
+    "fileName": "some_file_name.json",
+    "operands": [
+        "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+    ],
+    "operator": "compare_exact",
+    "data_retention_required": false,
+    "conditions": [
+        {
+            "output_index": "emitting_contract",
+            "operator": "compare_exact",
+            "operands": [
+                "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+            ]
+        },
+        {
+            "output_index": "emitted_arg_2",
+            "operator": "in_lists",
+            "operands": [
+                "SAFE_LIST_UUID"
+            ]
+        },
+        {
+            "operator": "formula",
+            "output_index": "",
+            "operands": [
+                {
+                    "variable_extraction": [
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_0",
+                            "var_name": "reserve"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_1",
+                            "var_name": "caller_user"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_2",
+                            "var_name": "safe_address"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "emitted_arg_3",
+                            "var_name": "amount_raw"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "tx_hash",
+                            "var_name": "tx_hash"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "block_number",
+                            "var_name": "block_number"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "block_timestamp",
+                            "var_name": "block_timestamp"
+                        },
+                        {
+                            "type": "context",
+                            "output_index": "tx_from",
+                            "var_name": "executed_by"
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "extracted_variables.reserve",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [],
+                            "input_data_type": [],
+                            "output_data_type": [
+                                "uint8"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "decimals()",
+                            "chain": "ethereum",
+                            "var_name": "asset_decimals",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "extracted_variables.reserve",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [],
+                            "input_data_type": [],
+                            "output_data_type": [
+                                "string"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "symbol()",
+                            "chain": "ethereum",
+                            "var_name": "asset_symbol",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [
+                                "extracted_variables.reserve"
+                            ],
+                            "input_data_type": [
+                                "address"
+                            ],
+                            "output_data_type": [
+                                "address"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "getReserveAToken(address asset)",
+                            "chain": "ethereum",
+                            "var_name": "atoken",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "gcr",
+                            "contract_address": "extracted_variables.atoken",
+                            "operands": [],
+                            "operator": "nop",
+                            "block_offset": 0,
+                            "input": [],
+                            "input_data_type": [],
+                            "output_data_type": [
+                                "string"
+                            ],
+                            "output_index": "output_arg_0",
+                            "func_sig": "symbol()",
+                            "chain": "ethereum",
+                            "var_name": "atoken_symbol",
+                            "contract_function_object": null,
+                            "idl_json": null,
+                            "abi_string": null
+                        },
+                        {
+                            "type": "token_balance",
+                            "token_holder_address": "extracted_variables.safe_address",
+                            "token_address": "extracted_variables.atoken",
+                            "native_token": false,
+                            "chain": "ethereum",
+                            "var_name": "atoken_balance",
+                            "scale_to_decimals": true
+                        },
+                        {
+                            "type": "python_processing",
+                            "source_code": "ZGVmIGJ1aWxkX2F1ZGl0X2xpbmUoZXh0cmFjdGVkX3ZhcmlhYmxlcyk6CiAgICAiIiJDb21wb3NlIHRoZSBodW1hbi1yZWFkYWJsZSBhdWRpdCBsaW5lIGZvciBvbmUgQWF2ZSB2MyBzdXBwbHkuIiIiCiAgICB0cnk6CiAgICAgICAgIyBDb25zdGFudHMgbGl2ZSBpbnNpZGUgdGhlIGZ1bmN0aW9uOiB0aGUgc2FuZGJveCBnaXZlcyB0aGlzIGNvZGUgbm8KICAgICAgICAjIGFjY2VzcyB0byBtb2R1bGUtbGV2ZWwgbmFtZXMuCiAgICAgICAgcG9vbF9hZGRyZXNzID0gIjB4ODc4NzBCY2EzRjNmRDYzMzVDM0Y0Y2U4MzkyRDY5MzUwQjRmQTRFMiIKICAgICAgICBzYWZlc19saXN0X3V1aWQgPSAiU0FGRV9MSVNUX1VVSUQiCgogICAgICAgIHNhZmVfYWRkcmVzcyA9IGV4dHJhY3RlZF92YXJpYWJsZXMuZ2V0KCJzYWZlX2FkZHJlc3MiKQogICAgICAgIGNhbGxlcl91c2VyID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImNhbGxlcl91c2VyIikKICAgICAgICBhbW91bnRfcmF3ID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImFtb3VudF9yYXciKQogICAgICAgIGFzc2V0X2RlY2ltYWxzID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImFzc2V0X2RlY2ltYWxzIikKICAgICAgICBhc3NldF9zeW1ib2wgPSBleHRyYWN0ZWRfdmFyaWFibGVzLmdldCgiYXNzZXRfc3ltYm9sIikKICAgICAgICBhdG9rZW4gPSBleHRyYWN0ZWRfdmFyaWFibGVzLmdldCgiYXRva2VuIikKICAgICAgICBhdG9rZW5fc3ltYm9sID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImF0b2tlbl9zeW1ib2wiKQogICAgICAgIGF0b2tlbl9iYWxhbmNlID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImF0b2tlbl9iYWxhbmNlIikKICAgICAgICB0eF9oYXNoID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoInR4X2hhc2giKQogICAgICAgIGJsb2NrX251bWJlciA9IGV4dHJhY3RlZF92YXJpYWJsZXMuZ2V0KCJibG9ja19udW1iZXIiKQoKICAgICAgICBpZiBhc3NldF9kZWNpbWFscyBpcyBOb25lOgogICAgICAgICAgICBhc3NldF9kZWNpbWFscyA9IDE4CiAgICAgICAgaWYgYXNzZXRfc3ltYm9sIGlzIE5vbmU6CiAgICAgICAgICAgIGFzc2V0X3N5bWJvbCA9ICJ0b2tlbiIKICAgICAgICBpZiBhdG9rZW5fc3ltYm9sIGlzIE5vbmU6CiAgICAgICAgICAgIGF0b2tlbl9zeW1ib2wgPSAiYVRva2VuIgoKICAgICAgICAjIERlY2ltYWwtYWRqdXN0LiBOZXZlciBwdXQgcmF3IHVuaXRzIGluIGFuIGF1ZGl0IGxpbmU6ICI1MDAwMDAwIiBhbmQKICAgICAgICAjICI1IFVTREMiIGFyZSBub3QgdGhlIHNhbWUgc3RhdGVtZW50LgogICAgICAgIGFtb3VudCA9IGZsb2F0KGludChhbW91bnRfcmF3KSkgLyBmbG9hdCgxMCAqKiBpbnQoYXNzZXRfZGVjaW1hbHMpKQogICAgICAgIGFtb3VudF90ZXh0ID0gZiJ7YW1vdW50OiwuNmZ9Ii5yc3RyaXAoIjAiKS5yc3RyaXAoIi4iKQogICAgICAgICMgQSBkZXBvc2l0IHNtYWxsZXIgdGhhbiAwLjAwMDAwMDUgcm91bmRzIHRvICIwIiBhdCA2ZHAuIFJlcG9ydGluZwogICAgICAgICMgIkRlcG9zaXQ6IDAgVVNEQyIgZm9yIGEgcmVhbCB0cmFuc2ZlciBvZiB2YWx1ZSBpcyBhIG1pc3N0YXRlbWVudCBpbiBhbgogICAgICAgICMgYXVkaXQgcmVjb3JkLCBzbyBmYWxsIGJhY2sgdG8gZXhhY3QgYmFzZSB1bml0cyBpbnN0ZWFkLgogICAgICAgIGlmIGFtb3VudF90ZXh0ID09ICIwIiBhbmQgaW50KGFtb3VudF9yYXcpID4gMDoKICAgICAgICAgICAgYW1vdW50X3RleHQgPSBmIntpbnQoYW1vdW50X3Jhdyl9IGJhc2UgdW5pdHMgb2YiCgogICAgICAgIGlmIGF0b2tlbl9iYWxhbmNlIGlzIE5vbmU6CiAgICAgICAgICAgIGJhbGFuY2VfdGV4dCA9ICJ1bmF2YWlsYWJsZSIKICAgICAgICBlbHNlOgogICAgICAgICAgICBiYWxhbmNlX3RleHQgPSBmIntmbG9hdChhdG9rZW5fYmFsYW5jZSk6LC42Zn0iLnJzdHJpcCgiMCIpLnJzdHJpcCgiLiIpCiAgICAgICAgICAgICMgU2FtZSByb3VuZGluZyB0cmFwIG9uIHRoZSBiYWxhbmNlIHNpZGUuCiAgICAgICAgICAgIGlmIGJhbGFuY2VfdGV4dCA9PSAiMCIgYW5kIGZsb2F0KGF0b2tlbl9iYWxhbmNlKSA+IDA6CiAgICAgICAgICAgICAgICBiYWxhbmNlX3RleHQgPSBmIntmbG9hdChhdG9rZW5fYmFsYW5jZSk6LjE4Zn0iLnJzdHJpcCgiMCIpCgogICAgICAgICMgVGhlIFNhZmUncyBodW1hbiBsYWJlbCwgbWFpbnRhaW5lZCBhcyB0aGUgYG5vdGVgIG9uIHRoZSBzYW1lIExpc3QgdGhhdAogICAgICAgICMgZHJpdmVzIHRoaXMgYWdlbnQncyBmaWx0ZXIuIE9wdGlvbmFsOiBuZXZlciBsZXQgaXQgYnJlYWsgdGhlIGFsZXJ0LgogICAgICAgIHNhZmVfbGFiZWwgPSAiIgogICAgICAgIHRyeToKICAgICAgICAgICAgbm90ZSA9IGxpc3RfY2xpZW50LmdldF9ub3RlKHNhZmVzX2xpc3RfdXVpZCwgc2FmZV9hZGRyZXNzLCBjaGFpbi5ldGhlcmV1bSkKICAgICAgICAgICAgaWYgbm90ZToKICAgICAgICAgICAgICAgIHNhZmVfbGFiZWwgPSBmIiAoe25vdGV9KSIKICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICBzYWZlX2xhYmVsID0gIiIKCiAgICAgICAgIyBNYXRlcmlhbCBhdWRpdCBmYWN0OiBpbml0aWF0ZWQgYnkgc29tZXRoaW5nIG90aGVyIHRoYW4gdGhlIGhvbGRlci4KICAgICAgICBpbml0aWF0b3Jfbm90ZSA9ICIiCiAgICAgICAgbWlzbWF0Y2ggPSBGYWxzZQogICAgICAgIGlmIGNhbGxlcl91c2VyIGFuZCBzYWZlX2FkZHJlc3M6CiAgICAgICAgICAgIGlmIHN0cihjYWxsZXJfdXNlcikubG93ZXIoKSAhPSBzdHIoc2FmZV9hZGRyZXNzKS5sb3dlcigpOgogICAgICAgICAgICAgICAgbWlzbWF0Y2ggPSBUcnVlCiAgICAgICAgICAgICAgICBpbml0aWF0b3Jfbm90ZSA9IGYiIE5PVEU6IGluaXRpYXRlZCBieSB7Y2FsbGVyX3VzZXJ9LCBub3QgdGhlIGhvbGRpbmcgU2FmZS4iCgogICAgICAgIGRlc2NyaXB0aW9uID0gKAogICAgICAgICAgICBmIkRlcG9zaXQ6IHthbW91bnRfdGV4dH0ge2Fzc2V0X3N5bWJvbH0gZnJvbSBTYWZlIHtzYWZlX2FkZHJlc3N9e3NhZmVfbGFiZWx9ICIKICAgICAgICAgICAgZiItPiBBYXZlIHYzIHthc3NldF9zeW1ib2x9IHJlc2VydmUgKFBvb2wge3Bvb2xfYWRkcmVzc30sIGFUb2tlbiB7YXRva2VufSkuICIKICAgICAgICAgICAgZiJTYWZlIG5vdyBob2xkcyB7YmFsYW5jZV90ZXh0fSB7YXRva2VuX3N5bWJvbH0uICIKICAgICAgICAgICAgZiJUeCB7dHhfaGFzaH0gQCBibG9jayB7YmxvY2tfbnVtYmVyfS57aW5pdGlhdG9yX25vdGV9IgogICAgICAgICkKCiAgICAgICAgcmV0dXJuIHsKICAgICAgICAgICAgImF1ZGl0X2xpbmUiOiBkZXNjcmlwdGlvbiwKICAgICAgICAgICAgImFtb3VudCI6IGFtb3VudCwKICAgICAgICAgICAgImFtb3VudF90ZXh0IjogYW1vdW50X3RleHQsCiAgICAgICAgICAgICJiYWxhbmNlX3RleHQiOiBiYWxhbmNlX3RleHQsCiAgICAgICAgICAgICJpbml0aWF0b3JfbWlzbWF0Y2giOiBtaXNtYXRjaCwKICAgICAgICB9CiAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4Y2VwdGlvbjoKICAgICAgICAjIE5ldmVyIGZhaWwgc2lsZW50bHk6IHN1cmZhY2UgdGhlIHByb2JsZW0gaW4gdGhlIGFsZXJ0IGl0c2VsZiwgc28gYQogICAgICAgICMgYnJva2VuIGFnZW50IGlzIHZpc2libGUgcmF0aGVyIHRoYW4gbWVyZWx5IHF1aWV0LgogICAgICAgIHJldHVybiB7CiAgICAgICAgICAgICJhdWRpdF9saW5lIjogZiJBYXZlIHYzIGRlcG9zaXQgZGV0ZWN0ZWQgYnV0IGZvcm1hdHRpbmcgZmFpbGVkOiB7ZXhjZXB0aW9ufSIsCiAgICAgICAgICAgICJhbW91bnQiOiAwLAogICAgICAgICAgICAiYW1vdW50X3RleHQiOiAiPyIsCiAgICAgICAgICAgICJiYWxhbmNlX3RleHQiOiAiPyIsCiAgICAgICAgICAgICJpbml0aWF0b3JfbWlzbWF0Y2giOiBGYWxzZSwKICAgICAgICB9Cg==",
+                            "var_name": "formatted",
+                            "entry_point": "build_audit_line"
+                        },
+                        {
+                            "type": "python_processing",
+                            "source_code": "ZGVmIGV4dHJhY3RfYXVkaXRfbGluZShleHRyYWN0ZWRfdmFyaWFibGVzKToKICAgICIiIkxpZnQgdGhlIGNvbXBvc2VkIGxpbmUgaW50byBhIGZsYXQgdmFyaWFibGUuCgogICAgQWxlcnRDb25maWcuZGVzY3JpcHRpb24gY2FuIG9ubHkgaW50ZXJwb2xhdGUge3t2YXJfbmFtZX19LCBuZXZlcgogICAge3tvYmouZmllbGR9fSwgc28gdGhlIG5lc3RlZCB2YWx1ZSBoYXMgdG8gYmUgc3VyZmFjZWQgb24gaXRzIG93bi4KICAgICIiIgogICAgZm9ybWF0dGVkID0gZXh0cmFjdGVkX3ZhcmlhYmxlcy5nZXQoImZvcm1hdHRlZCIpCiAgICBpZiBmb3JtYXR0ZWQgaXMgTm9uZToKICAgICAgICByZXR1cm4gIkFhdmUgdjMgZGVwb3NpdCBkZXRlY3RlZCAoZm9ybWF0dGVyIHByb2R1Y2VkIG5vIG91dHB1dCkiCiAgICByZXR1cm4gZm9ybWF0dGVkLmdldCgiYXVkaXRfbGluZSIpCg==",
+                            "var_name": "audit_line",
+                            "entry_point": "extract_audit_line"
+                        }
+                    ],
+                    "eval": {
+                        "sym_expression": "audit_line",
+                        "operator": "any",
+                        "operands": [],
+                        "custom_description": "{{formula_extracted_variables_kvmapping.entries.audit_line}}"
+                    }
+                }
+            ]
+        }
+    ],
+    "isReminderEnabled": false,
+    "module": "",
+    "moduleName": "",
+    "typeArguments": [],
+    "genericTypeParams": [],
+    "advanced": [
+        "customDescription"
+    ],
+    "customDescription": "{{formula_extracted_variables_kvmapping.entries.audit_line}}"
+}

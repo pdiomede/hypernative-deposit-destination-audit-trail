@@ -105,10 +105,21 @@ Each flag carries its own threshold, so flag percentages aren't comparable
 to each other either: a 0.055% flag can be clean while a 0.006% one is
 Medium. Only flags that actually triggered are listed; the rest are counted.
 
-> If you see `NOTE: 8/67 reserve(s) could not be checked (RPC error or rate
-> limit)`, just run it again — that's a transient public-RPC limit, not a
-> problem with your wallet. It's reported explicitly rather than silently
-> counted as "nothing held".
+> **Seeing `NOTE: 25/67 reserve(s) could not be checked (RPC error or rate
+> limit)`?** That's the free public RPC throttling, not a problem with your
+> wallet — a full sweep makes ~200 sequential calls. Failed reads are
+> retried automatically, and it's reported explicitly rather than silently
+> counted as "nothing held". To get rid of it, put your own endpoint in
+> `config.env`:
+>
+> ```
+> ETHEREUM_RPC_URL=https://your-provider.example/v2/YOUR_KEY
+> BASE_RPC_URL=https://your-base-endpoint.example/v2/YOUR_KEY
+> ```
+>
+> Any provider works (Alchemy, Infura, QuickNode, self-hosted) — paste the
+> URL they give you. Those URLs contain your API key, so the tool only ever
+> prints the host name, never the full URL.
 
 ---
 

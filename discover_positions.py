@@ -17,6 +17,14 @@ WHAT IT DOES
     talks to each chain's public RPC, not to Hypernative, so it needs no
     Hypernative credentials and consumes no quota.
 
+RPC ENDPOINTS
+    The public defaults rate-limit under this script's call pattern (~200
+    sequential reads for a full Aave sweep), which surfaces as reserves
+    reported as "could not be checked". Two mitigations: failed reads are
+    retried with a short backoff, and ETHEREUM_RPC_URL / BASE_RPC_URL in
+    config.env point the sweep at your own endpoint. Those URLs normally
+    embed an API key, so they are only ever printed by host name.
+
 POOL TOXICITY (optional, off unless credentials exist)
     With HYPERNATIVE_CLIENT_ID / HYPERNATIVE_CLIENT_SECRET in config.env,
     each position found is also screened with Hypernative's Pool Toxicity
@@ -36,11 +44,39 @@ USAGE
 import json
 import os
 import sys
+import time
 
 import requests
 from web3 import Web3
 
-from shared.common import CHAINS, MORPHO_VAULT_UNIVERSE
+from shared.common import (CHAINS, MORPHO_VAULT_UNIVERSE, chain_rpc_url,
+                           describe_rpc_url)
+
+# Public RPCs rate-limit (HTTP 429) under the burst of calls a full sweep
+# makes -- ~200 sequential reads for 67 Aave reserves. Those failures are
+# transient, not real: a reserve reported as "could not be checked" returns
+# a balance fine when queried on its own moments later. Retrying with a
+# short backoff recovers most of them; setting <CHAIN>_RPC_URL in config.env
+# to a paid endpoint avoids them in the first place.
+RPC_ATTEMPTS = 3
+RPC_BACKOFF_SECONDS = 0.5
+
+
+def with_retry(operation):
+    """Run a single RPC read, retrying transient failures before giving up.
+
+    Re-raises the last exception if every attempt fails, so a genuinely
+    unreachable reserve is still reported rather than silently passed over.
+    """
+    last_exception = None
+    for attempt in range(RPC_ATTEMPTS):
+        try:
+            return operation()
+        except Exception as exception:
+            last_exception = exception
+            if attempt < RPC_ATTEMPTS - 1:
+                time.sleep(RPC_BACKOFF_SECONDS * (2 ** attempt))
+    raise last_exception
 
 # PLACEHOLDER -- the Safe addresses you want to check. Also accepted as argv.
 SAFES_TO_CHECK = []
@@ -146,6 +182,59 @@ def pool_toxicity_policy_ids(credentials):
     return [chosen["id"]]
 
 
+# --------------------------------------------------------------------------
+# Transient progress, written to STDERR.
+#
+# The sweeps only print when they FIND something, so checking 67 Aave
+# reserves looks like a hang for a minute or more. These lines say "still
+# working" without touching the results.
+#
+# stderr, not stdout: the results are what gets piped, grepped and
+# screenshotted, and a progress bar has no business in them. Gating on
+# stderr's own isatty (rather than stdout's, as shared/common.py's
+# is_terminal() does) means `... > out.txt` still shows the bar on screen
+# while writing a clean file.
+#
+# ASCII bar rather than block glyphs, which render unpredictably over SSH
+# and in recorded terminals.
+# --------------------------------------------------------------------------
+PROGRESS_BAR_WIDTH = 28
+
+
+def progress_enabled():
+    return bool(getattr(sys.stderr, "isatty", lambda: False)())
+
+
+def progress(label, done, total):
+    """Draw a progress bar for a loop whose length is known up front."""
+    if not progress_enabled():
+        return
+    filled = int(PROGRESS_BAR_WIDTH * done / total) if total else 0
+    bar = "#" * filled + "-" * (PROGRESS_BAR_WIDTH - filled)
+    sys.stderr.write(f"\r\033[K    {label}  [{bar}]  {done}/{total}")
+    sys.stderr.flush()
+
+
+def progress_note(message):
+    """Transient status for work with no knowable duration (an HTTP call)."""
+    if not progress_enabled():
+        return
+    sys.stderr.write(f"\r\033[K    {message}")
+    sys.stderr.flush()
+
+
+def progress_done():
+    """Erase the transient line.
+
+    Must run before ANY real output, or a half-drawn bar is left stranded
+    above a results line.
+    """
+    if not progress_enabled():
+        return
+    sys.stderr.write("\r\033[K")
+    sys.stderr.flush()
+
+
 def format_toxicity_percentage(value):
     """Render a toxicity percentage the way the Hypernative UI does.
 
@@ -225,7 +314,9 @@ def print_pool_toxicity(pool_id, chain_key, toxicity, indent):
     app: the policy's recommendation and aggregated toxicity, then the flags
     that actually triggered.
     """
+    progress_note("screening pool toxicity...")
     result = check_pool_toxicity(pool_id, chain_key, toxicity)
+    progress_done()
 
     if result.get("error"):
         print(f"{indent}Pool toxicity: could not check -- {result['error']}")
@@ -260,15 +351,17 @@ def check_morpho_vaults(w3, safe, chain_key=None, toxicity=None):
     """Report every verified Morpho vault where this Safe holds shares."""
     print("\n  Morpho vaults:")
     found = []
-    for vault in MORPHO_VAULT_UNIVERSE:
+    total_vaults = len(MORPHO_VAULT_UNIVERSE)
+    for index, vault in enumerate(MORPHO_VAULT_UNIVERSE, 1):
+        progress("Morpho vaults", index, total_vaults)
         try:
             contract = w3.eth.contract(
                 address=Web3.to_checksum_address(vault["address"]), abi=VAULT_ABI
             )
-            shares = contract.functions.balanceOf(safe).call()
+            shares = with_retry(lambda: contract.functions.balanceOf(safe).call())
             if shares > 0:
-                vault_decimals = contract.functions.decimals().call()
-                assets = contract.functions.convertToAssets(shares).call()
+                vault_decimals = with_retry(lambda: contract.functions.decimals().call())
+                assets = with_retry(lambda: contract.functions.convertToAssets(shares).call())
 
                 # Two different scales, deliberately: shares use the VAULT's
                 # decimals, assets use the UNDERLYING ASSET's. Both are read
@@ -283,6 +376,7 @@ def check_morpho_vaults(w3, safe, chain_key=None, toxicity=None):
                 assets_human = assets / (10 ** asset_decimals)
                 symbol = vault.get("symbol", vault["address"][:10])
                 version = vault.get("version", "?")
+                progress_done()
                 print(f"    HOLDS  {symbol:<12} {version:<5} "
                       f"{shares_human:>18,.6f} shares  ~ "
                       f"{assets_human:>16,.2f} {asset_symbol}")
@@ -292,7 +386,9 @@ def check_morpho_vaults(w3, safe, chain_key=None, toxicity=None):
                     print_pool_toxicity(vault["address"], chain_key, toxicity, "      ")
         except Exception as exception:
             label = vault.get("symbol", vault.get("address", "?"))
+            progress_done()
             print(f"    error  {label:<12} {exception}")
+    progress_done()
     if not found:
         print("    (no balances in the verified vault universe)")
     return found
@@ -326,14 +422,21 @@ def check_aave(w3, safe, pool_address, chain_key=None, toxicity=None):
         return []
 
     errored = []
-    for reserve in reserves:
+    total_reserves = len(reserves)
+    for index, reserve in enumerate(reserves, 1):
+        # 67 reserves on Ethereum, and nothing prints for the ~66 holding a
+        # zero balance -- this bar is the difference between "working" and
+        # "apparently hung".
+        progress("Aave v3", index, total_reserves)
         try:
-            atoken_address = pool.functions.getReserveAToken(reserve).call()
+            atoken_address = with_retry(
+                lambda: pool.functions.getReserveAToken(reserve).call())
             atoken = w3.eth.contract(address=atoken_address, abi=ERC20_ABI)
-            balance = atoken.functions.balanceOf(safe).call()
+            balance = with_retry(lambda: atoken.functions.balanceOf(safe).call())
             if balance > 0:
-                decimals = atoken.functions.decimals().call()
-                symbol = atoken.functions.symbol().call()
+                decimals = with_retry(lambda: atoken.functions.decimals().call())
+                symbol = with_retry(lambda: atoken.functions.symbol().call())
+                progress_done()
                 print(f"    HOLDS  {symbol:<14} {balance / (10 ** decimals):>18,.6f}"
                       f"   (reserve {reserve})")
                 found.append({"reserve": reserve, "atoken": atoken_address, "symbol": symbol})
@@ -349,6 +452,7 @@ def check_aave(w3, safe, pool_address, chain_key=None, toxicity=None):
             # per-reserve loop below found no matching aToken -- that
             # contradiction means a reserve was skipped, not that it's empty.
             errored.append(reserve)
+    progress_done()
     if not found:
         print("    (no aToken balances found among the reserves that could be checked)")
     if errored:
@@ -405,14 +509,18 @@ def main():
         # rate-limit (HTTP 429) under the burst of per-reserve calls check_aave
         # makes, and web3.py's default retry middleware backs off on each 429
         # with no overall time limit -- without this, a rate-limited run doesn't
-        # error, it just goes quiet for a very long time. If it's still slow
-        # with your own traffic, point RPC in CHAINS (shared/common.py) at a
-        # dedicated endpoint instead of the public one.
-        w3 = Web3(Web3.HTTPProvider(chain_config["rpc"], request_kwargs={"timeout": 15}))
+        # error, it just goes quiet for a very long time. Set <CHAIN>_RPC_URL
+        # in config.env to use a paid endpoint and avoid the limits entirely.
+        rpc_url = chain_rpc_url(chain_key)
+        # Never print rpc_url itself -- a paid endpoint carries its API key in
+        # the path, and this output gets screen-shared.
+        rpc_label = describe_rpc_url(chain_key)
+        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 15}))
         if not w3.is_connected():
-            print(f"Could not connect to {chain_config['rpc']} ({chain_key}). Skipping.")
+            print(f"Could not connect to {rpc_label} ({chain_key}). Skipping.")
             continue
-        print(f"\n{'#' * 78}\n{chain_key.upper()} -- connected at block {w3.eth.block_number}\n{'#' * 78}")
+        print(f"\n{'#' * 78}\n{chain_key.upper()} -- connected at block "
+              f"{w3.eth.block_number}  via {rpc_label}\n{'#' * 78}")
 
         for raw_safe in safes:
             safe = Web3.to_checksum_address(raw_safe)

@@ -250,6 +250,39 @@ CHAINS = {
 }
 
 
+def chain_rpc_url(chain_key):
+    """RPC endpoint for a chain: <CHAIN>_RPC_URL from config.env, else the
+    public default in CHAINS.
+
+    e.g. ETHEREUM_RPC_URL / BASE_RPC_URL. Full URLs rather than a bare API
+    key, because every provider shapes them differently (Alchemy /v2/KEY,
+    Infura /v3/KEY, QuickNode a custom hostname) -- pasting the URL the
+    provider gives you works everywhere and needs no per-provider logic.
+
+    Worth setting: the public defaults rate-limit hard under the ~200
+    sequential calls a full Aave sweep makes, which surfaces as reserves
+    that "could not be checked".
+    """
+    override = os.environ.get(f"{chain_key.upper()}_RPC_URL", "").strip()
+    return override or CHAINS[chain_key]["rpc"]
+
+
+def describe_rpc_url(chain_key):
+    """A printable description of the RPC in use -- NEVER the raw URL.
+
+    A paid endpoint carries the API key inside the URL
+    (.../v2/<KEY>), and this tool's output gets screen-shared and pasted
+    into tickets. So a custom endpoint is described by its host only, with
+    the path (and therefore the key) dropped; the public defaults hold no
+    secret and are printed in full.
+    """
+    override = os.environ.get(f"{chain_key.upper()}_RPC_URL", "").strip()
+    if not override:
+        return CHAINS[chain_key]["rpc"]
+    host = override.split("://")[-1].split("/")[0]
+    return f"custom RPC ({host})"
+
+
 def is_quiet_mode():
     """True if the script was invoked with --quiet or -q.
 

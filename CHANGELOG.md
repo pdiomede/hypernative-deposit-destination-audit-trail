@@ -15,6 +15,36 @@ Pending your own configuration before a deployable release:
 - Replay a real Base deposit through the Morpho Blue agent (Aave v3 on Base
   is done, see 0.0.13); no Morpho Blue Base fixture exists yet.
 
+## [0.0.16] - 2026-09-08
+
+Made the long sweeps visibly alive, and attacked the "could not be checked"
+reserves at the source.
+
+### Added
+
+- **Progress bar** for the two sweeps (`Aave v3  [########------]  28/67`)
+  and a transient note while a pool toxicity call is in flight. Written to
+  **stderr** and gated on stderr being a TTY, so results on stdout are
+  untouched: verified a redirected run produces a file with zero carriage
+  returns, bar fragments or escape sequences while 96 frames were drawn on
+  the terminal.
+- **`ETHEREUM_RPC_URL` / `BASE_RPC_URL`** in `config.env` (via
+  `chain_rpc_url()` in `shared/common.py`) to point the sweep at your own
+  endpoint. Full URLs rather than a bare key, since every provider shapes
+  them differently -- paste whatever the provider gives you.
+- **Retries** on per-reserve and per-vault reads, with a short exponential
+  backoff, before a reserve is declared unreadable.
+
+### Notes
+
+- The "could not be checked" reserves were confirmed to be pure rate
+  limiting, not real errors: four reserves reported as failed each returned
+  a balance fine when queried individually moments later.
+- A paid RPC URL embeds an API key, and this tool's output gets
+  screen-shared. `describe_rpc_url()` therefore prints a custom endpoint by
+  **host name only** (`custom RPC (eth-mainnet.g.alchemy.com)`), never the
+  full URL; public defaults have no secret and print in full.
+
 ## [0.0.15] - 2026-09-08
 
 Reformatted the pool toxicity output to mirror the "Flags Inspection" panel
